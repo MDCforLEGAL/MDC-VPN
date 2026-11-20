@@ -205,6 +205,10 @@ object VpnConnectionManager {
         when (profile.engine) {
             VpnEngine.WIREGUARD -> connectWireGuard(profile)
             VpnEngine.OPENVPN -> connectOpenVpn(profile)
+            // Tor tuneli Orbot uygulamasi tarafindan kurulur.
+            VpnEngine.TOR -> _lastError.value =
+                app?.getString(com.mdc.vpn.R.string.error_tor_not_ready)
+                    ?: "Tor is provided by Orbot"
         }
     }
 
@@ -288,6 +292,7 @@ object VpnConnectionManager {
         when (activeEngine) {
             VpnEngine.WIREGUARD -> stopWireGuard()
             VpnEngine.OPENVPN -> stopTunnel(app)
+            VpnEngine.TOR -> Unit
         }
     }
 

@@ -18,6 +18,7 @@ object AppSettings {
     private const val KEY_CHECK_UPDATES = "check_updates"
     private const val KEY_LANGUAGE = "language"
     private const val KEY_AD_BLOCK = "ad_block"
+    private const val KEY_LEGACY_OPENVPN = "legacy_openvpn"
 
     const val LANGUAGE_SYSTEM = "system"
     const val LANGUAGE_TURKISH = "tr"
@@ -35,6 +36,17 @@ object AppSettings {
 
     fun setCheckUpdatesOnLaunch(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_CHECK_UPDATES, enabled).apply()
+    }
+
+    /**
+     * Eski OpenVPN sunuculari icin yapilandirma uyumlastirmasi acik mi?
+     * (BF-CBC, ns-cert-type, tls-remote, LZO, TLS 1.0 gibi direktifler)
+     */
+    fun legacyOpenVpn(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_LEGACY_OPENVPN, true)
+
+    fun setLegacyOpenVpn(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_LEGACY_OPENVPN, enabled).apply()
     }
 
     /** Uygulama ici tarayicide reklam/izleyici engelleme acik mi? */

@@ -10,6 +10,7 @@ import com.mdc.vpn.data.ProfileStore
 import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.databinding.ActivitySettingsBinding
 import com.mdc.vpn.settings.AppSettings
+import com.mdc.vpn.tor.Orbot
 import com.mdc.vpn.ui.UpdatePrompt
 import com.mdc.vpn.util.Links
 import com.mdc.vpn.vpn.VpnConnectionManager
@@ -40,6 +41,12 @@ class SettingsActivity : AppCompatActivity() {
             AppSettings.setCheckUpdatesOnLaunch(this, checked)
         }
 
+        binding.legacySwitch.isChecked = AppSettings.legacyOpenVpn(this)
+        binding.legacySwitch.setOnCheckedChangeListener { _, checked ->
+            AppSettings.setLegacyOpenVpn(this, checked)
+        }
+        binding.openOrbotRow.setOnClickListener { openOrbot() }
+
         binding.adBlockSwitch.isChecked = AppSettings.adBlock(this)
         binding.adBlockSwitch.setOnCheckedChangeListener { _, checked ->
             AppSettings.setAdBlock(this, checked)
@@ -58,6 +65,7 @@ class SettingsActivity : AppCompatActivity() {
             val engine = when (checkedId) {
                 R.id.settingsOpenVpnButton -> VpnEngine.OPENVPN
                 R.id.settingsWireGuardButton -> VpnEngine.WIREGUARD
+                R.id.settingsTorButton -> VpnEngine.TOR
                 else -> return@addOnButtonCheckedListener
             }
             if (ProfileStore.engine(this) == engine) return@addOnButtonCheckedListener
@@ -96,10 +104,11 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun syncSelections() {
         binding.adBlockSwitch.isChecked = AppSettings.adBlock(this)
-        val engineId = if (ProfileStore.engine(this) == VpnEngine.WIREGUARD) {
-            R.id.settingsWireGuardButton
-        } else {
-            R.id.settingsOpenVpnButton
+        binding.legacySwitch.isChecked = AppSettings.legacyOpenVpn(this)
+        val engineId = when (ProfileStore.engine(this)) {
+            VpnEngine.WIREGUARD -> R.id.settingsWireGuardButton
+            VpnEngine.TOR -> R.id.settingsTorButton
+            VpnEngine.OPENVPN -> R.id.settingsOpenVpnButton
         }
         if (binding.engineToggle.checkedButtonId != engineId) {
             binding.engineToggle.check(engineId)
@@ -131,6 +140,15 @@ class SettingsActivity : AppCompatActivity() {
         ProfileStore.resetCustom(this)
         syncSelections()
         showMessage(getString(R.string.settings_reset_done))
+    }
+
+    private fun openOrbot() {
+        if (!Orbot.isInstalled(this)) {
+            Orbot.openDownloadPage(this)
+            return
+        }
+        val opened = Orbot.start(this)
+        showMessage(getString(if (opened) R.string.tor_opened else R.string.tor_open_failed))
     }
 
     private fun openPersonalLinks() {

@@ -147,4 +147,23 @@
     <string name="update_conflict_copy">Copy link</string>
     <string name="update_conflict_copied">Link copied</string>
     <string name="update_storage_permission">Storage permission is required to save the APK to Downloads.</string>
+
+    <!-- Tor and legacy server compatibility -->
+    <string name="protocol_tor">Tor</string>
+    <string name="profile_tor_name">Tor connection</string>
+    <string name="profile_tor_endpoint">Routed through Orbot</string>
+    <string name="tor_missing_title">Orbot required</string>
+    <string name="tor_missing_message">Tor connections run through the free Orbot app, which provides the Tor network on Android; no Tor client is bundled inside this app.\n\nInstall and open Orbot, tap \"Start Tor\" and enable VPN mode, then all traffic goes through Tor.</string>
+    <string name="tor_download">Get Orbot</string>
+    <string name="tor_opened">Orbot opened: tap \"Start Tor\" and enable VPN mode.</string>
+    <string name="tor_open_failed">Could not open Orbot.</string>
+    <string name="error_tor_not_ready">Tor connections are handled by the Orbot app.</string>
+    <string name="settings_section_tor">TOR</string>
+    <string name="settings_tor_desc">Tor runs through the free Orbot app on this device. With Tor selected, Orbot builds the tunnel and this app only starts it.</string>
+    <string name="settings_open_orbot_title">Open Orbot</string>
+    <string name="settings_open_orbot_desc">Starts the Tor network or opens its download page</string>
+    <string name="settings_legacy_title">Legacy server compatibility</string>
+    <string name="settings_legacy_desc">Adapts old directives such as BF-CBC, ns-cert-type, tls-remote, LZO and TLS 1.0 for OVPN3</string>
+    <string name="legacy_applied_title">Legacy compatibility applied</string>
+    <string name="legacy_applied_message">The profile was made connectable. Changed settings:\n\n%1$s</string>
 </resources>

@@ -16,6 +16,7 @@ import androidx.core.widget.ImageViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.mdc.vpn.browser.BrowserActivity
 import com.mdc.vpn.data.ProfileStore
@@ -23,6 +24,7 @@ import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.data.VpnProfile
 import com.mdc.vpn.databinding.ActivityMainBinding
 import com.mdc.vpn.settings.AppSettings
+import com.mdc.vpn.tor.Orbot
 import com.mdc.vpn.ui.UpdatePrompt
 import com.mdc.vpn.util.Formatters
 import com.mdc.vpn.util.Links
@@ -83,6 +85,7 @@ class MainActivity : AppCompatActivity() {
             val engine = when (checkedId) {
                 R.id.openVpnButton -> VpnEngine.OPENVPN
                 R.id.wireGuardButton -> VpnEngine.WIREGUARD
+                R.id.torButton -> VpnEngine.TOR
                 else -> return@addOnButtonCheckedListener
             }
             onProtocolSelected(engine)
@@ -223,6 +226,8 @@ class MainActivity : AppCompatActivity() {
         val current = profile ?: return
         binding.profileName.text = current.displayName
         binding.profileServer.text = when {
+            current.engine == VpnEngine.TOR ->
+                getString(R.string.profile_tor_endpoint)
             current.engine == VpnEngine.WIREGUARD && !current.isConfigured ->
                 getString(R.string.profile_wireguard_import_hint)
             current.engine == VpnEngine.WIREGUARD ->
@@ -235,7 +240,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyProtocolSelection(engine: VpnEngine) {
-        val target = if (engine == VpnEngine.WIREGUARD) R.id.wireGuardButton else R.id.openVpnButton
+        val target = when (engine) {
+            VpnEngine.WIREGUARD -> R.id.wireGuardButton
+            VpnEngine.TOR -> R.id.torButton
+            VpnEngine.OPENVPN -> R.id.openVpnButton
+        }
         if (binding.protocolToggle.checkedButtonId != target) {
             binding.protocolToggle.check(target)
         }
@@ -274,6 +283,10 @@ class MainActivity : AppCompatActivity() {
         when (VpnConnectionManager.state.value) {
             VpnState.DISCONNECTED -> {
                 val current = profile ?: ProfileStore.load(this).also { profile = it }
+                if (current.engine == VpnEngine.TOR) {
+                    openTor()
+                    return
+                }
                 if (current.engine == VpnEngine.WIREGUARD && !current.isConfigured) {
                     showMessage(getString(R.string.profile_wireguard_import_hint))
                     pickProfile()
@@ -311,6 +324,7 @@ class MainActivity : AppCompatActivity() {
                 applyProtocolSelection(imported.engine)
                 renderProfile()
                 showMessage(getString(R.string.profile_imported, imported.displayName))
+                if (imported.notes.isNotEmpty()) showLegacyNotes(imported.notes)
             }
             .onFailure {
                 val isWireGuard = ProfileStore.engine(this) == VpnEngine.WIREGUARD
@@ -320,6 +334,40 @@ class MainActivity : AppCompatActivity() {
                     )
                 )
             }
+    }
+
+    /**
+     * Tor secenegi: cihazda Tor calistiran Orbot uygulamasini baslatir. Yoksa
+     * ucretsiz indirme sayfasini onerir.
+     */
+    private fun openTor() {
+        if (!Orbot.isInstalled(this)) {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.tor_missing_title)
+                .setMessage(R.string.tor_missing_message)
+                .setPositiveButton(R.string.tor_download) { _, _ -> Orbot.openDownloadPage(this) }
+                .setNegativeButton(R.string.action_later, null)
+                .show()
+            return
+        }
+        val opened = Orbot.start(this)
+        showMessage(
+            getString(if (opened) R.string.tor_opened else R.string.tor_open_failed)
+        )
+    }
+
+    /** Ice aktarilan eski profilde hangi direktiflerin uyarlandigini gosterir. */
+    private fun showLegacyNotes(notes: List<String>) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.legacy_applied_title)
+            .setMessage(
+                getString(
+                    R.string.legacy_applied_message,
+                    notes.joinToString("\n") { "• $it" }
+                )
+            )
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun openPersonalLinks() {
@@ -337,6 +385,8 @@ class MainActivity : AppCompatActivity() {
         if (!AppSettings.autoConnect(this)) return
         if (VpnConnectionManager.state.value != VpnState.DISCONNECTED) return
         val current = profile ?: return
+        // Tor'u otomatik baslatmak Orbot'un izin akisini atlar; kullanici secer.
+        if (current.engine == VpnEngine.TOR) return
         if (current.engine == VpnEngine.WIREGUARD && !current.isConfigured) return
         binding.root.postDelayed({ requestVpnPermissionAndConnect() }, 400L)
     }

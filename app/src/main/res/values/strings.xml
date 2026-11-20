@@ -147,4 +147,23 @@
     <string name="update_conflict_copy">Bağlantıyı kopyala</string>
     <string name="update_conflict_copied">Bağlantı kopyalandı</string>
     <string name="update_storage_permission">APK\'yı İndirilenler\'e kaydetmek için depolama izni gerekiyor.</string>
+
+    <!-- Tor ve eski sunucu uyumluluğu -->
+    <string name="protocol_tor">Tor</string>
+    <string name="profile_tor_name">Tor bağlantısı</string>
+    <string name="profile_tor_endpoint">Orbot üzerinden yönlendirilir</string>
+    <string name="tor_missing_title">Orbot gerekli</string>
+    <string name="tor_missing_message">Tor bağlantısı, cihazda Tor ağını çalıştıran ücretsiz Orbot uygulaması üzerinden yapılır; uygulamanın içinde Tor istemcisi gömülü değildir.\n\nOrbot\'u kurup açın, \"Tor\'u Başlat\" düğmesine basın ve VPN modunu etkinleştirin; tüm trafik Tor üzerinden gider.</string>
+    <string name="tor_download">Orbot\'u indir</string>
+    <string name="tor_opened">Orbot açıldı: \"Tor\'u Başlat\" ve VPN modunu etkinleştirin.</string>
+    <string name="tor_open_failed">Orbot açılamadı.</string>
+    <string name="error_tor_not_ready">Tor bağlantısı Orbot uygulaması üzerinden yönetilir.</string>
+    <string name="settings_section_tor">TOR</string>
+    <string name="settings_tor_desc">Tor, cihazdaki ücretsiz Orbot uygulamasıyla çalışır. Tor seçiliyken tüneli Orbot kurar; uygulama yalnızca Tor\'u başlatır.</string>
+    <string name="settings_open_orbot_title">Orbot\'u aç</string>
+    <string name="settings_open_orbot_desc">Tor ağını başlatır veya kurulum sayfasını açar</string>
+    <string name="settings_legacy_title">Eski sunucu uyumluluğu</string>
+    <string name="settings_legacy_desc">BF-CBC, ns-cert-type, tls-remote, LZO ve TLS 1.0 gibi eski direktifleri OVPN3\'e uyarlar</string>
+    <string name="legacy_applied_title">Eski sunucu uyumluluğu uygulandı</string>
+    <string name="legacy_applied_message">Profil bağlanabilir hale getirildi. Değişen ayarlar:\n\n%1$s</string>
 </resources>

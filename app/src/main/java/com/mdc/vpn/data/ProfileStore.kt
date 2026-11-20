@@ -4,11 +4,13 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.mdc.vpn.R
+import com.mdc.vpn.settings.AppSettings
 
-/** Desteklenen tunel cekirdekleri. */
+/** Desteklenen tunel cekirdekleri. Tor, Orbot uzerinden yonetilir. */
 enum class VpnEngine {
     OPENVPN,
-    WIREGUARD
+    WIREGUARD,
+    TOR
 }
 
 /** Uygulamanin baglanmak icin kullandigi yapilandirma. */
@@ -20,7 +22,9 @@ data class VpnProfile(
     /** OpenVPN icin tasima protokolu (`udp` / `tcp-client`). */
     val protocol: String,
     val isCustom: Boolean,
-    val engine: VpnEngine
+    val engine: VpnEngine,
+    /** Eski sunucu uyumlulugu kapsaminda yapilandirmada yapilan degisiklikler. */
+    val notes: List<String> = emptyList()
 ) {
     val endpoint: String get() = if (port > 0) "$host:$port" else host
 
@@ -53,6 +57,7 @@ object ProfileStore {
     /** Secili tunel cekirdegi; varsayilan OpenVPN. */
     fun engine(context: Context): VpnEngine = when (prefs(context).getString(KEY_ENGINE, null)) {
         VpnEngine.WIREGUARD.name -> VpnEngine.WIREGUARD
+        VpnEngine.TOR.name -> VpnEngine.TOR
         else -> VpnEngine.OPENVPN
     }
 
@@ -66,6 +71,7 @@ object ProfileStore {
     fun load(context: Context, engine: VpnEngine): VpnProfile = when (engine) {
         VpnEngine.OPENVPN -> openVpnProfile(context)
         VpnEngine.WIREGUARD -> wireGuardProfile(context)
+        VpnEngine.TOR -> torProfile(context)
     }
 
     fun defaultProfile(context: Context): VpnProfile = openVpnProfile(context)
@@ -143,16 +149,36 @@ object ProfileStore {
         isCustom: Boolean
     ): VpnProfile {
         val remote = parseOpenVpnRemote(config)
+        // Eski sunucularin direktiflerini OVPN3'un anladigi bicime cevir.
+        val compat = if (AppSettings.legacyOpenVpn(context)) {
+            OpenVpnCompat.applyLegacy(config)
+        } else {
+            OpenVpnCompat.Result(config, emptyList())
+        }
         return VpnProfile(
             displayName = displayName,
-            config = config,
+            config = compat.config,
             host = remote?.first ?: context.getString(R.string.profile_unknown_host),
             port = remote?.second ?: DEFAULT_PORT,
             protocol = remote?.third ?: "udp",
             isCustom = isCustom,
-            engine = VpnEngine.OPENVPN
+            engine = VpnEngine.OPENVPN,
+            notes = compat.changes
         )
     }
+
+    // ------------------------------------------------------------------- Tor
+
+    /** Tor secenegi: tuneli Orbot yonetir, uygulama yalnizca yonlendirir. */
+    private fun torProfile(context: Context): VpnProfile = VpnProfile(
+        displayName = context.getString(R.string.profile_tor_name),
+        config = "",
+        host = context.getString(R.string.profile_tor_endpoint),
+        port = 0,
+        protocol = "tor",
+        isCustom = false,
+        engine = VpnEngine.TOR
+    )
 
     /** Yapilandirmada en az bir `remote` satiri ve bir istemci tanimi olmali. */
     private fun isValidOpenVpn(config: String): Boolean {
