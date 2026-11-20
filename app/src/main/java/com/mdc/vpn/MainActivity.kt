@@ -1,6 +1,7 @@
 package com.mdc.vpn
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.net.Uri
@@ -17,17 +18,21 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.snackbar.Snackbar
 import com.mdc.vpn.data.ProfileStore
+import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.data.VpnProfile
 import com.mdc.vpn.databinding.ActivityMainBinding
+import com.mdc.vpn.settings.AppSettings
+import com.mdc.vpn.ui.UpdatePrompt
 import com.mdc.vpn.util.Formatters
+import com.mdc.vpn.util.Links
 import com.mdc.vpn.vpn.VpnConnectionManager
 import com.mdc.vpn.vpn.VpnState
 import com.mdc.vpn.vpn.VpnStats
 import kotlinx.coroutines.launch
 
 /**
- * Tek ekranli arayuz: durum halkasi, tek tusla baglan/kes, oturum istatistikleri
- * ve `.ovpn` profil secimi.
+ * Tek ekranli arayuz: durum halkasi, tek tusla baglan/kes, oturum istatistikleri,
+ * protokol secimi ve yapilandirma ice aktarma.
  */
 class MainActivity : AppCompatActivity() {
 
@@ -50,7 +55,7 @@ class MainActivity : AppCompatActivity() {
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-            // Bildirim izni verilmese de tünel calisir; yalnizca durum bildirimi
+            // Bildirim izni verilmese de tunel calisir; yalnizca durum bildirimi
             // gosterilemez.
         }
 
@@ -60,13 +65,30 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         profile = ProfileStore.load(this)
+        applyProtocolSelection(ProfileStore.engine(this))
         renderProfile()
 
         binding.connectButton.setOnClickListener { onConnectClicked() }
         binding.importButton.setOnClickListener { pickProfile() }
+        binding.settingsButton.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+        binding.browseButton.setOnClickListener { openPersonalLinks() }
+        binding.protocolToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            val engine = when (checkedId) {
+                R.id.openVpnButton -> VpnEngine.OPENVPN
+                R.id.wireGuardButton -> VpnEngine.WIREGUARD
+                else -> return@addOnButtonCheckedListener
+            }
+            onProtocolSelected(engine)
+        }
 
         observeVpnState()
+        observeErrors()
         requestNotificationPermissionIfNeeded()
+        maybeCheckUpdates()
+        maybeAutoConnect()
     }
 
     override fun onStart() {
@@ -77,6 +99,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         VpnConnectionManager.refreshFromSystem()
+        // Ayarlar ekranindan donuldugunde dil, profil veya protokol degismis olabilir.
+        val engine = ProfileStore.engine(this)
+        applyProtocolSelection(engine)
+        profile = ProfileStore.load(this, engine)
+        renderProfile()
     }
 
     override fun onStop() {
@@ -89,6 +116,19 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { VpnConnectionManager.state.collect { renderState(it) } }
                 launch { VpnConnectionManager.stats.collect { renderStats(it) } }
+            }
+        }
+    }
+
+    private fun observeErrors() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                VpnConnectionManager.lastError.collect { message ->
+                    if (!message.isNullOrBlank()) {
+                        showMessage(getString(R.string.error_connection_failed, message))
+                        VpnConnectionManager.clearError()
+                    }
+                }
             }
         }
     }
@@ -168,10 +208,33 @@ class MainActivity : AppCompatActivity() {
     private fun renderProfile() {
         val current = profile ?: return
         binding.profileName.text = current.displayName
-        binding.profileServer.text = getString(
-            if (current.isCustom) R.string.profile_custom_endpoint else R.string.profile_default_endpoint,
-            current.endpoint
-        )
+        binding.profileServer.text = when {
+            current.engine == VpnEngine.WIREGUARD && !current.isConfigured ->
+                getString(R.string.profile_wireguard_import_hint)
+            current.engine == VpnEngine.WIREGUARD ->
+                getString(R.string.profile_wireguard_endpoint, current.endpoint)
+            current.isCustom ->
+                getString(R.string.profile_custom_endpoint, current.endpoint)
+            else ->
+                getString(R.string.profile_default_endpoint, current.endpoint)
+        }
+    }
+
+    private fun applyProtocolSelection(engine: VpnEngine) {
+        val target = if (engine == VpnEngine.WIREGUARD) R.id.wireGuardButton else R.id.openVpnButton
+        if (binding.protocolToggle.checkedButtonId != target) {
+            binding.protocolToggle.check(target)
+        }
+    }
+
+    private fun onProtocolSelected(engine: VpnEngine) {
+        if (ProfileStore.engine(this) == engine) return
+        if (VpnConnectionManager.state.value != VpnState.DISCONNECTED) {
+            VpnConnectionManager.disconnect()
+        }
+        ProfileStore.setEngine(this, engine)
+        profile = ProfileStore.load(this, engine)
+        renderProfile()
     }
 
     private fun styleConnectButton(active: Boolean) {
@@ -195,7 +258,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun onConnectClicked() {
         when (VpnConnectionManager.state.value) {
-            VpnState.DISCONNECTED -> requestVpnPermissionAndConnect()
+            VpnState.DISCONNECTED -> {
+                val current = profile ?: ProfileStore.load(this).also { profile = it }
+                if (current.engine == VpnEngine.WIREGUARD && !current.isConfigured) {
+                    showMessage(getString(R.string.profile_wireguard_import_hint))
+                    pickProfile()
+                    return
+                }
+                requestVpnPermissionAndConnect()
+            }
             VpnState.CONNECTING, VpnState.CONNECTED -> VpnConnectionManager.disconnect()
             VpnState.DISCONNECTING -> Unit
         }
@@ -223,12 +294,37 @@ class MainActivity : AppCompatActivity() {
         runCatching { ProfileStore.importFrom(this, uri) }
             .onSuccess { imported ->
                 profile = imported
+                applyProtocolSelection(imported.engine)
                 renderProfile()
                 showMessage(getString(R.string.profile_imported, imported.displayName))
             }
             .onFailure {
-                showMessage(getString(R.string.error_profile_invalid))
+                val isWireGuard = ProfileStore.engine(this) == VpnEngine.WIREGUARD
+                showMessage(
+                    getString(
+                        if (isWireGuard) R.string.error_wireguard_invalid else R.string.error_profile_invalid
+                    )
+                )
             }
+    }
+
+    private fun openPersonalLinks() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(Links.PERSONAL_LINKS))
+        runCatching { startActivity(intent) }
+            .onFailure { showMessage(getString(R.string.settings_browse_desc)) }
+    }
+
+    private fun maybeCheckUpdates() {
+        if (!AppSettings.checkUpdatesOnLaunch(this)) return
+        UpdatePrompt.check(this, manual = false)
+    }
+
+    private fun maybeAutoConnect() {
+        if (!AppSettings.autoConnect(this)) return
+        if (VpnConnectionManager.state.value != VpnState.DISCONNECTED) return
+        val current = profile ?: return
+        if (current.engine == VpnEngine.WIREGUARD && !current.isConfigured) return
+        binding.root.postDelayed({ requestVpnPermissionAndConnect() }, 400L)
     }
 
     private fun requestNotificationPermissionIfNeeded() {

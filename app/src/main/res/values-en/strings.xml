@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MDC VPN</string>
+
+    <!-- Actions -->
+    <string name="action_connect">Connect</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_disconnecting">Disconnecting…</string>
+    <string name="action_choose_file">Choose file</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_browse_content">Browse my links</string>
+    <string name="action_update">Update</string>
+    <string name="action_later">Later</string>
+
+    <!-- State -->
+    <string name="state_disconnected_title">Not connected</string>
+    <string name="state_disconnected_subtitle">Secure tunnel is off</string>
+    <string name="state_connecting_title">Connecting</string>
+    <string name="state_connecting_subtitle">Handshaking with the server</string>
+    <string name="state_connected_title">Protected</string>
+    <string name="state_connected_subtitle">Traffic is flowing through the encrypted tunnel</string>
+    <string name="state_disconnecting_title">Disconnecting</string>
+    <string name="state_disconnecting_subtitle">Closing the tunnel</string>
+
+    <string name="pill_disconnected">Not connected</string>
+    <string name="pill_connecting">Connecting</string>
+    <string name="pill_connected">Protected</string>
+    <string name="pill_disconnecting">Disconnecting</string>
+
+    <!-- Statistics -->
+    <string name="label_duration">DURATION</string>
+    <string name="label_download">DOWNLOAD</string>
+    <string name="label_upload">UPLOAD</string>
+    <string name="value_zero_speed">0 B/s</string>
+    <string name="value_zero_duration">00:00:00</string>
+
+    <!-- Protocol -->
+    <string name="label_protocol">PROTOCOL</string>
+    <string name="protocol_openvpn">OpenVPN</string>
+    <string name="protocol_wireguard">WireGuard</string>
+
+    <!-- Profile -->
+    <string name="label_profile">PROFILE</string>
+    <string name="profile_default_name">Default profile</string>
+    <string name="profile_custom_name">Custom profile</string>
+    <string name="profile_unknown_host">unknown host</string>
+    <string name="profile_default_endpoint">Bundled configuration • %1$s</string>
+    <string name="profile_custom_endpoint">Imported file • %1$s</string>
+    <string name="profile_imported">Profile loaded: %1$s</string>
+    <string name="profile_wireguard_name">WireGuard profile</string>
+    <string name="profile_wireguard_missing">No configuration yet</string>
+    <string name="profile_wireguard_endpoint">WireGuard file • %1$s</string>
+    <string name="profile_wireguard_import_hint">Import a .conf file to connect</string>
+
+    <!-- Notification -->
+    <string name="notification_title">MDC VPN</string>
+    <string name="notification_text">Secure tunnel is active</string>
+    <string name="notification_channel_name">VPN status</string>
+    <string name="notification_channel_description">Status of the active VPN connection</string>
+    <string name="notification_action_disconnect">Disconnect</string>
+
+    <!-- Errors -->
+    <string name="error_profile_invalid">The selected file is not a valid OpenVPN configuration.</string>
+    <string name="error_wireguard_invalid">The selected file is not a valid WireGuard configuration.</string>
+    <string name="error_vpn_permission_denied">VPN permission was not granted; the tunnel could not start.</string>
+    <string name="error_connection_failed">Could not connect: %1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_connection">CONNECTION</string>
+    <string name="settings_auto_connect_title">Connect on launch</string>
+    <string name="settings_auto_connect_desc">Starts the tunnel as soon as the app opens</string>
+    <string name="settings_reset_profile_title">Reset profile</string>
+    <string name="settings_reset_profile_desc">Deletes the imported configuration and restores the default</string>
+    <string name="settings_reset_done">Profile reset</string>
+    <string name="settings_section_protocol">PROTOCOL</string>
+    <string name="settings_protocol_desc">Tunnel core. Import an .ovpn file for OpenVPN or a .conf file for WireGuard.</string>
+    <string name="settings_section_updates">UPDATES</string>
+    <string name="settings_check_on_launch_title">Check for updates on launch</string>
+    <string name="settings_check_on_launch_desc">Prompts when a newer release is published</string>
+    <string name="settings_check_now_title">Check for updates</string>
+    <string name="settings_check_now_desc">Compares with the latest release on GitHub</string>
+    <string name="settings_version_title">App version</string>
+    <string name="settings_version_value">%1$s (%2$d)</string>
+    <string name="settings_section_language">LANGUAGE</string>
+    <string name="language_system">System</string>
+    <string name="language_turkish">Türkçe</string>
+    <string name="language_english">English</string>
+    <string name="settings_section_about">ABOUT</string>
+    <string name="settings_browse_title">Browse my links</string>
+    <string name="settings_browse_desc">Links hosted on mdcforlegal.github.io</string>
+    <string name="settings_package_title">Package name</string>
+    <string name="settings_license_title">License</string>
+    <string name="settings_license_value">Apache-2.0 • OpenVPN 3 + WireGuard</string>
+    <string name="settings_footer">MDC VPN • OpenVPN 3 and WireGuard</string>
+
+    <!-- Updates -->
+    <string name="update_available_title">New version available</string>
+    <string name="update_available_message">Version %1$s has been released. Download and install it now?</string>
+    <string name="update_downloading">Downloading update… %1$d%%</string>
+    <string name="update_preparing">Preparing the installer…</string>
+    <string name="update_up_to_date">The app is up to date: %1$s</string>
+    <string name="update_check_failed">Update check failed: %1$s</string>
+    <string name="update_no_apk">This release has no installable APK.</string>
+    <string name="update_download_failed">Download failed: %1$s</string>
+    <string name="update_permission_needed">Allow installs first: Settings → Install unknown apps → MDC VPN.</string>
+
+    <!-- Accessibility -->
+    <string name="cd_brand_icon">MDC VPN logo</string>
+    <string name="cd_state_icon">Connection state icon</string>
+    <string name="cd_profile_icon">Profile icon</string>
+    <string name="cd_settings_icon">Open settings</string>
+    <string name="cd_back_icon">Go back</string>
+    <string name="cd_chevron">Details</string>
+    <string name="footer_text">OpenVPN • WireGuard • MDC VPN</string>
+</resources>

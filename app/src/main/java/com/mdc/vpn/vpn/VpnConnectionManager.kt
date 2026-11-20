@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.TrafficStats
 import android.os.IBinder
+import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.data.VpnProfile
 import com.tim.basevpn.IVPNService
 import com.tim.basevpn.connection.ConnectionListener
@@ -25,6 +26,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.wireguard.android.backend.Backend
+import com.wireguard.android.backend.GoBackend
+import com.wireguard.android.backend.Tunnel
+import com.wireguard.config.Config
+import java.io.BufferedReader
+import java.io.StringReader
 
 /** Kullaniciya gosterilen baglanti durumlari. */
 enum class VpnState {
@@ -60,6 +68,9 @@ object VpnConnectionManager {
     /** Elle durdurma istegi olmadan bu kadar sure baglanilamazsa vazgecilir. */
     private const val CONNECT_TIMEOUT_MS = 45_000L
 
+    /** WireGuard tunel adi (kutuphane adlarinda en fazla 15 karakter ister). */
+    private const val WIREGUARD_TUNNEL_NAME = "mdcvpn"
+
     /** `TrafficStats` bu cihazda desteklenmiyorsa -1 doner. */
     private const val UNSUPPORTED_TRAFFIC = -1L
 
@@ -70,6 +81,28 @@ object VpnConnectionManager {
 
     private val _stats = MutableStateFlow(VpnStats())
     val stats: StateFlow<VpnStats> = _stats.asStateFlow()
+
+    /** Son baglanti hatasi (varsa) — arayuzde kullaniciya gosterilir. */
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
+    private var activeEngine: VpnEngine = VpnEngine.OPENVPN
+    private var wireGuardBackend: Backend? = null
+
+    /** WireGuard durum geri cagrilarini akisin durum modeline cevirir. */
+    private val wireGuardTunnel = object : Tunnel {
+        override fun getName(): String = WIREGUARD_TUNNEL_NAME
+
+        override fun onStateChange(state: Tunnel.State) {
+            scope.launch {
+                when (state) {
+                    Tunnel.State.UP -> applyState(VpnState.CONNECTED)
+                    Tunnel.State.DOWN -> applyState(VpnState.DISCONNECTED)
+                    else -> Unit
+                }
+            }
+        }
+    }
 
     private var app: Application? = null
     private var bound = false
@@ -127,6 +160,11 @@ object VpnConnectionManager {
         }
     }
 
+    /** Arayuzde gosterilen son hatayi temizler. */
+    fun clearError() {
+        _lastError.value = null
+    }
+
     /** Aktivite on plandayken servise baglanir (durum geri cagrilari icin). */
     fun bind() {
         val context = app ?: return
@@ -162,10 +200,21 @@ object VpnConnectionManager {
         }
     }
 
-    /** Profili kullanarak tüneli baslatir. */
+    /** Profili kullanarak tüneli baslatir (protokol profile gore secilir). */
     fun connect(profile: VpnProfile) {
+        when (profile.engine) {
+            VpnEngine.WIREGUARD -> connectWireGuard(profile)
+            VpnEngine.OPENVPN -> connectOpenVpn(profile)
+        }
+    }
+
+    /** OpenVPN 3 (OVPN3) cekirdegi ile baglanir. */
+    private fun connectOpenVpn(profile: VpnProfile) {
         val context = app ?: return
         if (_state.value == VpnState.CONNECTING || _state.value == VpnState.CONNECTED) return
+
+        activeEngine = VpnEngine.OPENVPN
+        _lastError.value = null
 
         val config = OpenVPNConfig().copy(
             name = profile.displayName,
@@ -197,9 +246,49 @@ object VpnConnectionManager {
         }
     }
 
+    /** WireGuard cekirdegi ile baglanir. `setState` bloklayan bir cagridir. */
+    private fun connectWireGuard(profile: VpnProfile) {
+        val context = app ?: return
+        if (_state.value == VpnState.CONNECTING || _state.value == VpnState.CONNECTED) return
+        if (!profile.isConfigured) {
+            _lastError.value = "Empty WireGuard configuration"
+            return
+        }
+
+        activeEngine = VpnEngine.WIREGUARD
+        _lastError.value = null
+        applyState(VpnState.CONNECTING)
+        startSampler()
+
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val config = Config.parse(BufferedReader(StringReader(profile.config)))
+                val backend = wireGuardBackend ?: GoBackend(context).also { wireGuardBackend = it }
+                backend.setState(wireGuardTunnel, Tunnel.State.UP, config)
+            }.onFailure { error ->
+                withContext(Dispatchers.Main) {
+                    _lastError.value = error.message ?: error.javaClass.simpleName
+                    applyState(VpnState.DISCONNECTED)
+                }
+            }
+        }
+    }
+
+    private fun stopWireGuard() {
+        val backend = wireGuardBackend
+        applyState(VpnState.DISCONNECTING)
+        scope.launch(Dispatchers.IO) {
+            runCatching { backend?.setState(wireGuardTunnel, Tunnel.State.DOWN, null) }
+            withContext(Dispatchers.Main) { applyState(VpnState.DISCONNECTED) }
+        }
+    }
+
     /** Tüneli kapatir. */
     fun disconnect() {
-        stopTunnel(app)
+        when (activeEngine) {
+            VpnEngine.WIREGUARD -> stopWireGuard()
+            VpnEngine.OPENVPN -> stopTunnel(app)
+        }
     }
 
     /** Bildirimdeki "Baglantiyi Kes" aksiyonundan cagrilir. */

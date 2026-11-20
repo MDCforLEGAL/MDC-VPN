@@ -7,6 +7,10 @@
     <string name="action_disconnect">Bağlantıyı Kes</string>
     <string name="action_disconnecting">Kesiliyor…</string>
     <string name="action_choose_file">Dosya Seç</string>
+    <string name="action_settings">Ayarlar</string>
+    <string name="action_browse_content">Diğer içeriklerim</string>
+    <string name="action_update">Güncelle</string>
+    <string name="action_later">Sonra</string>
 
     <!-- Durum -->
     <string name="state_disconnected_title">Bağlı değil</string>
@@ -30,6 +34,11 @@
     <string name="value_zero_speed">0 B/s</string>
     <string name="value_zero_duration">00:00:00</string>
 
+    <!-- Protokol -->
+    <string name="label_protocol">PROTOKOL</string>
+    <string name="protocol_openvpn">OpenVPN</string>
+    <string name="protocol_wireguard">WireGuard</string>
+
     <!-- Profil -->
     <string name="label_profile">PROFİL</string>
     <string name="profile_default_name">Varsayılan profil</string>
@@ -38,6 +47,10 @@
     <string name="profile_default_endpoint">Gömülü yapılandırma • %1$s</string>
     <string name="profile_custom_endpoint">İçe aktarılan dosya • %1$s</string>
     <string name="profile_imported">Profil yüklendi: %1$s</string>
+    <string name="profile_wireguard_name">WireGuard profili</string>
+    <string name="profile_wireguard_missing">Henüz yapılandırma yok</string>
+    <string name="profile_wireguard_endpoint">WireGuard dosyası • %1$s</string>
+    <string name="profile_wireguard_import_hint">Bağlanmak için bir .conf dosyası içe aktarın</string>
 
     <!-- Bildirim -->
     <string name="notification_title">MDC VPN</string>
@@ -48,11 +61,56 @@
 
     <!-- Hatalar -->
     <string name="error_profile_invalid">Seçilen dosya geçerli bir OpenVPN yapılandırması değil.</string>
+    <string name="error_wireguard_invalid">Seçilen dosya geçerli bir WireGuard yapılandırması değil.</string>
     <string name="error_vpn_permission_denied">VPN izni verilmedi; tünel açılamadı.</string>
+    <string name="error_connection_failed">Bağlantı kurulamadı: %1$s</string>
+
+    <!-- Ayarlar -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_section_connection">BAĞLANTI</string>
+    <string name="settings_auto_connect_title">Açılışta otomatik bağlan</string>
+    <string name="settings_auto_connect_desc">Uygulama açıldığında tünel kendiliğinden kurulur</string>
+    <string name="settings_reset_profile_title">Profili sıfırla</string>
+    <string name="settings_reset_profile_desc">İçe aktarılan yapılandırmayı siler, varsayılana döner</string>
+    <string name="settings_reset_done">Profil sıfırlandı</string>
+    <string name="settings_section_protocol">PROTOKOL</string>
+    <string name="settings_protocol_desc">Tünel çekirdeği. OpenVPN için .ovpn, WireGuard için .conf dosyası içe aktarın.</string>
+    <string name="settings_section_updates">GÜNCELLEMELER</string>
+    <string name="settings_check_on_launch_title">Açılışta güncelleme denetle</string>
+    <string name="settings_check_on_launch_desc">Yeni sürüm yayınlandığında bildirir</string>
+    <string name="settings_check_now_title">Güncellemeleri denetle</string>
+    <string name="settings_check_now_desc">GitHub üzerindeki en son sürümle karşılaştırır</string>
+    <string name="settings_version_title">Uygulama sürümü</string>
+    <string name="settings_version_value">%1$s (%2$d)</string>
+    <string name="settings_section_language">DİL</string>
+    <string name="language_system">Sistem</string>
+    <string name="language_turkish">Türkçe</string>
+    <string name="language_english">English</string>
+    <string name="settings_section_about">HAKKINDA</string>
+    <string name="settings_browse_title">Diğer içeriklerim</string>
+    <string name="settings_browse_desc">mdcforlegal.github.io üzerindeki bağlantılar</string>
+    <string name="settings_package_title">Paket adı</string>
+    <string name="settings_license_title">Lisans</string>
+    <string name="settings_license_value">Apache-2.0 • OpenVPN 3 + WireGuard</string>
+    <string name="settings_footer">MDC VPN • OpenVPN 3 ve WireGuard</string>
+
+    <!-- Güncelleme -->
+    <string name="update_available_title">Yeni sürüm mevcut</string>
+    <string name="update_available_message">Sürüm %1$s yayınlandı. Şimdi indirilip kurulsun mu?</string>
+    <string name="update_downloading">Güncelleme indiriliyor… %1$d%%</string>
+    <string name="update_preparing">Kurulum hazırlanıyor…</string>
+    <string name="update_up_to_date">Uygulama güncel: %1$s</string>
+    <string name="update_check_failed">Güncelleme denetlenemedi: %1$s</string>
+    <string name="update_no_apk">Bu sürümde kurulabilir APK bulunamadı.</string>
+    <string name="update_download_failed">İndirme başarısız: %1$s</string>
+    <string name="update_permission_needed">Kuruluma izin verin: Ayarlar → Bilinmeyen uygulamalar → MDC VPN.</string>
 
     <!-- Erişilebilirlik -->
     <string name="cd_brand_icon">MDC VPN simgesi</string>
     <string name="cd_state_icon">Bağlantı durumu simgesi</string>
     <string name="cd_profile_icon">Profil simgesi</string>
-    <string name="footer_text">OpenVPN • MDC VPN</string>
+    <string name="cd_settings_icon">Ayarları aç</string>
+    <string name="cd_back_icon">Geri dön</string>
+    <string name="cd_chevron">Ayrıntı</string>
+    <string name="footer_text">OpenVPN • WireGuard • MDC VPN</string>
 </resources>
