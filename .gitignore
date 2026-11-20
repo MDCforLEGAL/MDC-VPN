@@ -14,6 +14,12 @@ release.keystore
 *.keystore
 keystore.properties
 
+# Istisna: sabit yedek imza anahtari depoda tutulur. CI her calismada yeni bir
+# debug anahtari uretirse surumler farkli imzalanir ve uygulama ici guncelleme
+# "paket çakıştı" hatasi verir; bu anahtar tum yedek derlemelerde ayni imzayi
+# garanti eder. Gercek yayin anahtari hala secret olarak tutulur.
+!keystore/mdc-fallback.keystore
+
 # OS noise
 .DS_Store
 Thumbs.db

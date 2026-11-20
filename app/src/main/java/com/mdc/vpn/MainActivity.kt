@@ -17,6 +17,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.snackbar.Snackbar
+import com.mdc.vpn.browser.BrowserActivity
 import com.mdc.vpn.data.ProfileStore
 import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.data.VpnProfile
@@ -74,6 +75,9 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
         binding.browseButton.setOnClickListener { openPersonalLinks() }
+        binding.browserButton.setOnClickListener {
+            startActivity(Intent(this, BrowserActivity::class.java))
+        }
         binding.protocolToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (!isChecked) return@addOnButtonCheckedListener
             val engine = when (checkedId) {
@@ -109,6 +113,16 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         VpnConnectionManager.unbind()
         super.onStop()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // Guncelleme akisinda APK'yi Indirilenler'e kaydetmek icin istenen izin.
+        UpdatePrompt.onRequestPermissionsResult(this, requestCode)
     }
 
     private fun observeVpnState() {

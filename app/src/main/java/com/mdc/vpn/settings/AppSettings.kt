@@ -17,6 +17,7 @@ object AppSettings {
     private const val KEY_AUTO_CONNECT = "auto_connect"
     private const val KEY_CHECK_UPDATES = "check_updates"
     private const val KEY_LANGUAGE = "language"
+    private const val KEY_AD_BLOCK = "ad_block"
 
     const val LANGUAGE_SYSTEM = "system"
     const val LANGUAGE_TURKISH = "tr"
@@ -34,6 +35,14 @@ object AppSettings {
 
     fun setCheckUpdatesOnLaunch(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_CHECK_UPDATES, enabled).apply()
+    }
+
+    /** Uygulama ici tarayicide reklam/izleyici engelleme acik mi? */
+    fun adBlock(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AD_BLOCK, true)
+
+    fun setAdBlock(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_AD_BLOCK, enabled).apply()
     }
 
     fun language(context: Context): String =

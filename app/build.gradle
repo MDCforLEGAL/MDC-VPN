@@ -13,6 +13,12 @@ def appVersionName = (findProperty('versionName') ?: '1.0.0').toString()
 def keystorePath = findProperty('MDC_KEYSTORE_FILE') ?: System.getenv('MDC_KEYSTORE_FILE')
 def hasReleaseKeystore = keystorePath != null && !keystorePath.toString().trim().isEmpty() && file(keystorePath).exists()
 
+// Depodaki sabit yedek anahtar. CI her calismada yeni bir debug anahtari
+// urettigi icin surumler farkli imzalanip uygulama ici guncelleme "paket
+// çakıştı" hatasi veriyordu; bu anahtar tum yedek derlemelerde ayni imzayi
+// garanti eder, boylece yeni APK eskisinin uzerine kurulur.
+def fallbackKeystore = rootProject.file('keystore/mdc-fallback.keystore')
+
 android {
     namespace 'com.mdc.vpn'
     compileSdk 34
@@ -28,6 +34,14 @@ android {
     }
 
     signingConfigs {
+        debug {
+            if (fallbackKeystore.exists()) {
+                storeFile fallbackKeystore
+                storePassword 'mdcvpn1234'
+                keyAlias 'mdc'
+                keyPassword 'mdcvpn1234'
+            }
+        }
         release {
             if (hasReleaseKeystore) {
                 storeFile file(keystorePath)

@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.snackbar.Snackbar
+import com.mdc.vpn.browser.BrowserActivity
 import com.mdc.vpn.data.ProfileStore
 import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.databinding.ActivitySettingsBinding
@@ -38,6 +39,15 @@ class SettingsActivity : AppCompatActivity() {
         binding.updateSwitch.setOnCheckedChangeListener { _, checked ->
             AppSettings.setCheckUpdatesOnLaunch(this, checked)
         }
+
+        binding.adBlockSwitch.isChecked = AppSettings.adBlock(this)
+        binding.adBlockSwitch.setOnCheckedChangeListener { _, checked ->
+            AppSettings.setAdBlock(this, checked)
+        }
+        binding.openBrowserRow.setOnClickListener {
+            startActivity(Intent(this, BrowserActivity::class.java))
+        }
+        binding.playProtectRow.setOnClickListener { UpdatePrompt.showPlayProtectHelp(this) }
 
         binding.resetProfileRow.setOnClickListener { resetProfile() }
         binding.checkNowRow.setOnClickListener { UpdatePrompt.check(this, manual = true) }
@@ -75,7 +85,17 @@ class SettingsActivity : AppCompatActivity() {
         renderInfo()
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        UpdatePrompt.onRequestPermissionsResult(this, requestCode)
+    }
+
     private fun syncSelections() {
+        binding.adBlockSwitch.isChecked = AppSettings.adBlock(this)
         val engineId = if (ProfileStore.engine(this) == VpnEngine.WIREGUARD) {
             R.id.settingsWireGuardButton
         } else {

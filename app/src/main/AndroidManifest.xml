@@ -17,6 +17,15 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!--
+        Android 9 ve oncesinde guncelleme APK'sini, kaldirma isleminden sonra da
+        kalacak sekilde Indirilenler klasorune kaydetmek icin gerekir. Android 10+
+        MediaStore kullandigi icin bu izne ihtiyac duymaz.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <!--
         BIND_VPN_SERVICE sistem tarafindan atanan bir signature iznidir; uygulama
         bu izni elde edemez. Gercek zorunluluk servis tanimindaki
         android:permission="android.permission.BIND_VPN_SERVICE" ile saglanir.
@@ -47,6 +56,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Uygulama ici tarayici: AdGuard filtre listesiyle reklam engelleme -->
+        <activity
+            android:name=".browser.BrowserActivity"
+            android:exported="false"
+            android:label="@string/browser_title"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".SettingsActivity"

@@ -113,4 +113,38 @@
     <string name="cd_back_icon">Go back</string>
     <string name="cd_chevron">Details</string>
     <string name="footer_text">OpenVPN • WireGuard • MDC VPN</string>
+
+    <!-- In-app browser -->
+    <string name="action_open_browser">Browser</string>
+    <string name="browser_title">Browser</string>
+    <string name="browser_url_hint">Address or search</string>
+    <string name="browser_blocker_on">Ad blocker on</string>
+    <string name="browser_blocker_off">Ad blocker off</string>
+    <string name="browser_blocked_count">%1$d requests blocked</string>
+    <string name="browser_open_in_chrome">Open in Chrome</string>
+    <string name="browser_external_failed">Could not open a browser</string>
+    <string name="settings_section_browser">BROWSER</string>
+    <string name="settings_adblock_title">Block ads and trackers</string>
+    <string name="settings_adblock_desc">Uses the AdGuard DNS list (190,000+ domains) inside the browser</string>
+    <string name="settings_open_browser_title">Open browser</string>
+    <string name="settings_open_browser_desc">Built-in browser with ad blocking</string>
+    <string name="cd_browser_icon">Open browser</string>
+    <string name="cd_close_browser">Close</string>
+    <string name="cd_reload_icon">Reload</string>
+
+    <!-- Play Protect and installation -->
+    <string name="play_protect_title">Play Protect warning</string>
+    <string name="play_protect_message">Play Protect may warn that apps installed outside Google Play could be harmful. MDC VPN only installs its own release from GitHub.\n\nIf the warning appears, choose \"Install anyway\". If it keeps appearing, you can turn scanning off for this app in the Play Protect settings.</string>
+    <string name="play_protect_settings">Play Protect settings</string>
+    <string name="settings_play_protect_title">Play Protect warning</string>
+    <string name="settings_play_protect_desc">What to do if a warning appears while installing</string>
+    <string name="install_blocked_title">Installation blocked</string>
+    <string name="install_blocked_message">The system did not finish the install: %1$s\n\nIf you saw a Play Protect warning, choose \"Install anyway\".</string>
+    <string name="update_conflict_title">Install conflict</string>
+    <string name="update_conflict_message">The installed version was signed with a different key, so Android cannot overwrite it.\n\nThe APK was saved to:\nDownload/MDC-VPN/%1$s\n\nAfter pressing \"Remove old version\", open that file to finish installing.</string>
+    <string name="update_conflict_message_link">The installed version was signed with a different key, so Android cannot overwrite it.\n\nThe APK could not be saved. After removing the old version, download it from:\n%1$s</string>
+    <string name="update_conflict_remove">Remove old version</string>
+    <string name="update_conflict_copy">Copy link</string>
+    <string name="update_conflict_copied">Link copied</string>
+    <string name="update_storage_permission">Storage permission is required to save the APK to Downloads.</string>
 </resources>

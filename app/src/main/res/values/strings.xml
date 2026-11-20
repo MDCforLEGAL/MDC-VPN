@@ -113,4 +113,38 @@
     <string name="cd_back_icon">Geri dön</string>
     <string name="cd_chevron">Ayrıntı</string>
     <string name="footer_text">OpenVPN • WireGuard • MDC VPN</string>
+
+    <!-- Uygulama içi tarayıcı -->
+    <string name="action_open_browser">Tarayıcı</string>
+    <string name="browser_title">Tarayıcı</string>
+    <string name="browser_url_hint">Adres veya arama</string>
+    <string name="browser_blocker_on">Reklam engelleyici açık</string>
+    <string name="browser_blocker_off">Reklam engelleyici kapalı</string>
+    <string name="browser_blocked_count">%1$d istek engellendi</string>
+    <string name="browser_open_in_chrome">Chrome\'da aç</string>
+    <string name="browser_external_failed">Tarayıcı açılamadı</string>
+    <string name="settings_section_browser">TARAYICI</string>
+    <string name="settings_adblock_title">Reklam ve izleyici engelleme</string>
+    <string name="settings_adblock_desc">AdGuard DNS listesi (190.000+ alan adı) tarayıcıda kullanılır</string>
+    <string name="settings_open_browser_title">Tarayıcıyı aç</string>
+    <string name="settings_open_browser_desc">Uygulama içi, reklam engelli tarayıcı</string>
+    <string name="cd_browser_icon">Tarayıcıyı aç</string>
+    <string name="cd_close_browser">Kapat</string>
+    <string name="cd_reload_icon">Yenile</string>
+
+    <!-- Play Protect ve kurulum -->
+    <string name="play_protect_title">Play Protect uyarısı</string>
+    <string name="play_protect_message">Play Protect, Google Play dışından kurulan uygulamalar için \"zararlı olabilir\" uyarısı gösterebilir. MDC VPN yalnızca kendi GitHub sürümünü kurar.\n\nUyarı çıkarsa \"Yine de yükle\" seçeneğini kullanın. Uyarı her seferinde tekrarlanıyorsa Play Protect ayarlarından bu uygulama için taramayı kapatabilirsiniz.</string>
+    <string name="play_protect_settings">Play Protect ayarları</string>
+    <string name="settings_play_protect_title">Play Protect uyarısı</string>
+    <string name="settings_play_protect_desc">Kurulum sırasında uyarı çıkarsa ne yapmalı?</string>
+    <string name="install_blocked_title">Kurulum engellendi</string>
+    <string name="install_blocked_message">Sistem kurulumu tamamlamadı: %1$s\n\nPlay Protect uyarısı gördüyseniz \"Yine de yükle\" seçeneğini kullanın.</string>
+    <string name="update_conflict_title">Kurulum çakışması</string>
+    <string name="update_conflict_message">Yüklü sürüm farklı bir imzayla kurulduğu için Android yeni sürümün üzerine yazamıyor.\n\nAPK İndirilenler klasörüne kaydedildi:\nİndirilenler/MDC-VPN/%1$s\n\n\"Eski sürümü kaldır\" dedikten sonra bu dosyayı açıp kurulumu tamamlayın.</string>
+    <string name="update_conflict_message_link">Yüklü sürüm farklı bir imzayla kurulduğu için Android yeni sürümün üzerine yazamıyor.\n\nAPK kaydedilemedi. Eski sürümü kaldırdıktan sonra şu adresten indirin:\n%1$s</string>
+    <string name="update_conflict_remove">Eski sürümü kaldır</string>
+    <string name="update_conflict_copy">Bağlantıyı kopyala</string>
+    <string name="update_conflict_copied">Bağlantı kopyalandı</string>
+    <string name="update_storage_permission">APK\'yı İndirilenler\'e kaydetmek için depolama izni gerekiyor.</string>
 </resources>
