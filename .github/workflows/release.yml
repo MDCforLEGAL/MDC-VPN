@@ -18,6 +18,11 @@ jobs:
     name: Build signed APK
     runs-on: ubuntu-latest
 
+    # `secrets` cannot be referenced in a step-level `if:` expression, so the
+    # presence of the keystore is evaluated once here and reused below.
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,13 +52,18 @@ jobs:
       # Opsiyonel imzalama: KEYSTORE_BASE64 tanimliysa gercek anahtar kullanilir,
       # aksi halde APK debug anahtariyla imzalanir ve yine de kurulabilir olur.
       - name: Decode release keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        if: env.HAS_KEYSTORE == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+          if [ ! -s release.keystore ]; then
+            echo "::error::KEYSTORE_BASE64 cozulemedi. Secret'i tek satirlik base64 metni olarak kontrol edin."
+            exit 1
+          fi
+          ls -l release.keystore
 
       - name: Build release APK
         env:
-          MDC_KEYSTORE_FILE: ${{ secrets.KEYSTORE_BASE64 != '' && 'release.keystore' || '' }}
+          MDC_KEYSTORE_FILE: ${{ env.HAS_KEYSTORE == 'true' && 'release.keystore' || '' }}
           MDC_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           MDC_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           MDC_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
