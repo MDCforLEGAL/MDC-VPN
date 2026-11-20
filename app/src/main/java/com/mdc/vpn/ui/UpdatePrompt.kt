@@ -20,7 +20,7 @@ object UpdatePrompt {
 
     fun check(activity: AppCompatActivity, manual: Boolean) {
         activity.lifecycleScope.launch {
-            when (val result = UpdateChecker.checkLatest(versionCode(activity))) {
+            when (val result = UpdateChecker.checkLatest(activity, versionCode(activity))) {
                 is UpdateChecker.Result.Available -> show(activity, result.info)
                 is UpdateChecker.Result.UpToDate -> if (manual) {
                     toast(

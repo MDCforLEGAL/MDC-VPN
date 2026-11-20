@@ -19,7 +19,8 @@ android {
 
     defaultConfig {
         applicationId 'com.mdc.vpn'
-        minSdk 24
+        // Android 5.0 ve uzeri: Samsung Note 5 gibi eski cihazlar da kurulum yapabilir.
+        minSdk 21
         targetSdk 34
         versionCode appVersionCode
         versionName appVersionName

@@ -1,12 +1,15 @@
 package com.mdc.vpn.update
 
 import android.content.Context
+import android.os.Build
+import com.mdc.vpn.util.TlsSupport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import javax.net.ssl.HttpsURLConnection
 
 /**
  * Uygulama ici guncelleme.
@@ -35,9 +38,10 @@ object UpdateChecker {
         data class Failed(val reason: String) : Result
     }
 
-    suspend fun checkLatest(currentVersionCode: Int): Result = withContext(Dispatchers.IO) {
+    suspend fun checkLatest(context: Context, currentVersionCode: Int): Result =
+        withContext(Dispatchers.IO) {
         runCatching {
-            val body = get(API_URL)
+            val body = get(context, API_URL)
             val json = JSONObject(body)
             val tag = json.optString("tag_name")
             val versionName = tag.removePrefix("v").ifBlank { json.optString("name") }
@@ -87,7 +91,7 @@ object UpdateChecker {
         directory.listFiles()?.forEach { it.delete() }
         val target = File(directory, "MDC-VPN-${info.versionName}.apk")
 
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+        val connection = open(context, url).apply {
             connectTimeout = 20_000
             readTimeout = 60_000
             instanceFollowRedirects = true
@@ -98,7 +102,11 @@ object UpdateChecker {
             if (connection.responseCode !in 200..299) {
                 throw IllegalStateException("HTTP ${connection.responseCode}")
             }
-            val total = connection.contentLengthLong
+            val total = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                connection.contentLengthLong
+            } else {
+                connection.contentLength.toLong()
+            }
             var copied = 0L
             connection.inputStream.use { input ->
                 target.outputStream().use { output ->
@@ -121,8 +129,20 @@ object UpdateChecker {
         }
     }
 
-    private fun get(url: String): String {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+    /**
+     * HTTPS baglantisi kurar. Eski cihazlarda guncel kok sertifikalar ve
+     * TLS 1.2 kullanilabilmesi icin [TlsSupport] soket fabrikasi uygulanir.
+     */
+    private fun open(context: Context, url: String): HttpURLConnection {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        if (connection is HttpsURLConnection) {
+            TlsSupport.socketFactory(context)?.let { connection.sslSocketFactory = it }
+        }
+        return connection
+    }
+
+    private fun get(context: Context, url: String): String {
+        val connection = open(context, url).apply {
             connectTimeout = 15_000
             readTimeout = 15_000
             setRequestProperty("Accept", "application/vnd.github+json")
