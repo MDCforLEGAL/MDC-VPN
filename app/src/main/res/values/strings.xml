@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MDC VPN</string>
+
+    <!-- Aksiyonlar -->
+    <string name="action_connect">Bağlan</string>
+    <string name="action_disconnect">Bağlantıyı Kes</string>
+    <string name="action_disconnecting">Kesiliyor…</string>
+    <string name="action_choose_file">Dosya Seç</string>
+
+    <!-- Durum -->
+    <string name="state_disconnected_title">Bağlı değil</string>
+    <string name="state_disconnected_subtitle">Güvenli tünel kapalı</string>
+    <string name="state_connecting_title">Bağlanıyor</string>
+    <string name="state_connecting_subtitle">Sunucu ile el sıkışılıyor</string>
+    <string name="state_connected_title">Güvende</string>
+    <string name="state_connected_subtitle">Trafik şifreli tünelden akıyor</string>
+    <string name="state_disconnecting_title">Kesiliyor</string>
+    <string name="state_disconnecting_subtitle">Tünel kapatılıyor</string>
+
+    <string name="pill_disconnected">Bağlı değil</string>
+    <string name="pill_connecting">Bağlanıyor</string>
+    <string name="pill_connected">Güvende</string>
+    <string name="pill_disconnecting">Kesiliyor</string>
+
+    <!-- İstatistikler -->
+    <string name="label_duration">SÜRE</string>
+    <string name="label_download">İNDİRME</string>
+    <string name="label_upload">YÜKLEME</string>
+    <string name="value_zero_speed">0 B/s</string>
+    <string name="value_zero_duration">00:00:00</string>
+
+    <!-- Profil -->
+    <string name="label_profile">PROFİL</string>
+    <string name="profile_default_name">Varsayılan profil</string>
+    <string name="profile_custom_name">Özel profil</string>
+    <string name="profile_unknown_host">bilinmeyen sunucu</string>
+    <string name="profile_default_endpoint">Gömülü yapılandırma • %1$s</string>
+    <string name="profile_custom_endpoint">İçe aktarılan dosya • %1$s</string>
+    <string name="profile_imported">Profil yüklendi: %1$s</string>
+
+    <!-- Bildirim -->
+    <string name="notification_title">MDC VPN</string>
+    <string name="notification_text">Güvenli tünel etkin</string>
+    <string name="notification_channel_name">VPN durumu</string>
+    <string name="notification_channel_description">Aktif VPN bağlantısının durum bilgisi</string>
+    <string name="notification_action_disconnect">Bağlantıyı Kes</string>
+
+    <!-- Hatalar -->
+    <string name="error_profile_invalid">Seçilen dosya geçerli bir OpenVPN yapılandırması değil.</string>
+    <string name="error_vpn_permission_denied">VPN izni verilmedi; tünel açılamadı.</string>
+
+    <!-- Erişilebilirlik -->
+    <string name="cd_brand_icon">MDC VPN simgesi</string>
+    <string name="cd_state_icon">Bağlantı durumu simgesi</string>
+    <string name="cd_profile_icon">Profil simgesi</string>
+    <string name="footer_text">OpenVPN • MDC VPN</string>
+</resources>
