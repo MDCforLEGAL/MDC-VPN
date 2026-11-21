@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "MDC VPN"
 include(":app")
+include(":desktop")

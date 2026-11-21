@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.TrafficStats
 import android.os.IBinder
+import com.mdc.vpn.R
 import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.data.VpnProfile
 import com.tim.basevpn.IVPNService
@@ -89,6 +90,9 @@ object VpnConnectionManager {
     private var activeEngine: VpnEngine = VpnEngine.OPENVPN
     private var wireGuardBackend: Backend? = null
 
+    /** Kullanici kendi istegiyle kesti mi? (Hata mesajini bastirmak icin.) */
+    private var stopRequested = false
+
     /** WireGuard durum geri cagrilarini akisin durum modeline cevirir. */
     private val wireGuardTunnel = object : Tunnel {
         override fun getName(): String = WIREGUARD_TUNNEL_NAME
@@ -118,7 +122,16 @@ object VpnConnectionManager {
     private val stateListener = object : ConnectionListener() {
         override fun stateChanged(state: ConnectionState?) {
             val target = state?.let(::mapState) ?: return
-            scope.launch { applyState(target) }
+            scope.launch {
+                if (target == VpnState.DISCONNECTED &&
+                    _state.value == VpnState.CONNECTING &&
+                    !stopRequested
+                ) {
+                    // Cekirdek sunucuya baglanamadi; kullaniciya nedenini goster.
+                    _lastError.value = app?.getString(R.string.error_connect_rejected)
+                }
+                applyState(target)
+            }
         }
 
         override fun trafficUpdate(txRate: Long, rxRate: Long, txTotal: Long, rxTotal: Long) {
@@ -202,13 +215,16 @@ object VpnConnectionManager {
 
     /** Profili kullanarak tüneli baslatir (protokol profile gore secilir). */
     fun connect(profile: VpnProfile) {
+        if (!profile.isReady) {
+            // Eksik/sablon profil ile tunel acmayi denemek sonsuz "Baglaniyor"
+            // dongusune yol aciyordu; bunun yerine net bir hata veriyoruz.
+            _lastError.value = app?.getString(R.string.error_profile_not_ready)
+            return
+        }
+        stopRequested = false
         when (profile.engine) {
             VpnEngine.WIREGUARD -> connectWireGuard(profile)
             VpnEngine.OPENVPN -> connectOpenVpn(profile)
-            // Tor tuneli Orbot uygulamasi tarafindan kurulur.
-            VpnEngine.TOR -> _lastError.value =
-                app?.getString(com.mdc.vpn.R.string.error_tor_not_ready)
-                    ?: "Tor is provided by Orbot"
         }
     }
 
@@ -238,16 +254,33 @@ object VpnConnectionManager {
                 MdcVpnNotification::class.java.name,
                 emptyArray()
             )
-        }.onFailure {
+        }.onFailure { error ->
+            _lastError.value = error.message ?: error.javaClass.simpleName
             applyState(VpnState.DISCONNECTED)
         }
 
-        // Servis ayaga kalktiktan sonra baglanip durum geri cagrilarini dinle.
+        // Servis `onStartCommand` icinde AIDL callback listesini yeniden
+        // olusturuyor. Daha once baglanmissak kayitli dinleyici kayboluyor ve
+        // arayuz hicbir durum guncellemesi almiyordu; bu yuzden baglantiyi
+        // tazeliyoruz. Yeniden baglanma da basarisiz olursa zamanlayici
+        // sistemdeki gercek tunu izlemeye devam eder.
         scope.launch {
             delay(700)
-            bind()
+            rebind()
             refreshFromSystem()
         }
+    }
+
+    /** Servise olan AIDL baglantisini tazeler (callback yeniden kaydedilir). */
+    private fun rebind() {
+        if (bound) {
+            runCatching { remote?.unregisterCallback(stateListener) }
+            val context = app ?: return
+            runCatching { context.unbindService(serviceConnection) }
+            remote = null
+            bound = false
+        }
+        bind()
     }
 
     /** WireGuard cekirdegi ile baglanir. `setState` bloklayan bir cagridir. */
@@ -289,10 +322,10 @@ object VpnConnectionManager {
 
     /** Tüneli kapatir. */
     fun disconnect() {
+        stopRequested = true
         when (activeEngine) {
             VpnEngine.WIREGUARD -> stopWireGuard()
             VpnEngine.OPENVPN -> stopTunnel(app)
-            VpnEngine.TOR -> Unit
         }
     }
 
@@ -323,6 +356,7 @@ object VpnConnectionManager {
             VpnState.CONNECTING -> {
                 connectingSinceMillis = System.currentTimeMillis()
                 inactiveTicks = 0
+                stopRequested = false
             }
             VpnState.CONNECTED -> {
                 connectedAtMillis = System.currentTimeMillis()
@@ -364,6 +398,9 @@ object VpnConnectionManager {
                         } else if (System.currentTimeMillis() - connectingSinceMillis > CONNECT_TIMEOUT_MS) {
                             // Sunucuya ulasilamadi: servisi kapat ve kullaniciya don.
                             app?.let { context -> runCatching { OpenVPNService.stopService(context) } }
+                            if (!stopRequested) {
+                                _lastError.value = app?.getString(R.string.error_connect_timeout)
+                            }
                             applyState(VpnState.DISCONNECTED)
                             return@launch
                         }

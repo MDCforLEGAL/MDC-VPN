@@ -6,11 +6,29 @@ import android.provider.OpenableColumns
 import com.mdc.vpn.R
 import com.mdc.vpn.settings.AppSettings
 
-/** Desteklenen tunel cekirdekleri. Tor, Orbot uzerinden yonetilir. */
+/** Desteklenen tunel cekirdekleri. */
 enum class VpnEngine {
     OPENVPN,
-    WIREGUARD,
-    TOR
+    WIREGUARD
+}
+
+/**
+ * Profilin baglanmaya neden hazir olmadigi. Kullaniciya [R.string] uzerinden
+ * acik bir mesaj gosterilir; boylece uygulama sessizce "baglaniyor" ekraninda
+ * kalmaz.
+ */
+enum class ProfileIssue {
+    /** Hic yapilandirma yok (or. WireGuard dosyasi ice aktarilmamis). */
+    MISSING_CONFIG,
+
+    /** Gömülü ornek dosya: gercek sunucu/sertifika degerleri yok. */
+    TEMPLATE,
+
+    /** Sunucu sertifikasini dogrulayacak CA sertifikasi bulunamadi. */
+    NO_CA,
+
+    /** Istemci sertifikasi/anahtari yok. */
+    NO_CLIENT_CERT
 }
 
 /** Uygulamanin baglanmak icin kullandigi yapilandirma. */
@@ -24,12 +42,19 @@ data class VpnProfile(
     val isCustom: Boolean,
     val engine: VpnEngine,
     /** Eski sunucu uyumlulugu kapsaminda yapilandirmada yapilan degisiklikler. */
-    val notes: List<String> = emptyList()
+    val notes: List<String> = emptyList(),
+    /** Profil baglanmaya hazir degilse nedeni; hazirsa `null`. */
+    val issue: ProfileIssue? = null,
+    /** Profil kullanici adi/parola istiyor mu? (auth-user-pass) */
+    val needsCredentials: Boolean = false
 ) {
     val endpoint: String get() = if (port > 0) "$host:$port" else host
 
-    /** Yapilandirma yuklenmis mi? (WireGuard icin dosya icе aktarilmamis olabilir.) */
+    /** Yapilandirma yuklenmis mi? (WireGuard icin dosya ice aktarilmamis olabilir.) */
     val isConfigured: Boolean get() = config.isNotBlank()
+
+    /** Baglanti denemesi baslatilabilir mi? */
+    val isReady: Boolean get() = issue == null && config.isNotBlank()
 }
 
 /**
@@ -54,12 +79,16 @@ object ProfileStore {
     private const val DEFAULT_PORT = 1194
     private const val DEFAULT_WIREGUARD_PORT = 51820
 
+    private val CERT_BEGIN = Regex("-----BEGIN CERTIFICATE-----")
+    private val KEY_BEGIN = Regex("-----BEGIN [A-Z ]*PRIVATE KEY-----")
+    private val AUTH_USER_PASS = Regex("(?m)^\\s*auth-user-pass\\b")
+
     /** Secili tunel cekirdegi; varsayilan OpenVPN. */
-    fun engine(context: Context): VpnEngine = when (prefs(context).getString(KEY_ENGINE, null)) {
-        VpnEngine.WIREGUARD.name -> VpnEngine.WIREGUARD
-        VpnEngine.TOR.name -> VpnEngine.TOR
-        else -> VpnEngine.OPENVPN
-    }
+    fun engine(context: Context): VpnEngine =
+        when (prefs(context).getString(KEY_ENGINE, null)) {
+            VpnEngine.WIREGUARD.name -> VpnEngine.WIREGUARD
+            else -> VpnEngine.OPENVPN
+        }
 
     fun setEngine(context: Context, engine: VpnEngine) {
         prefs(context).edit().putString(KEY_ENGINE, engine.name).apply()
@@ -71,7 +100,6 @@ object ProfileStore {
     fun load(context: Context, engine: VpnEngine): VpnProfile = when (engine) {
         VpnEngine.OPENVPN -> openVpnProfile(context)
         VpnEngine.WIREGUARD -> wireGuardProfile(context)
-        VpnEngine.TOR -> torProfile(context)
     }
 
     fun defaultProfile(context: Context): VpnProfile = openVpnProfile(context)
@@ -155,6 +183,7 @@ object ProfileStore {
         } else {
             OpenVpnCompat.Result(config, emptyList())
         }
+        val needsCredentials = AUTH_USER_PASS.containsMatchIn(compat.config)
         return VpnProfile(
             displayName = displayName,
             config = compat.config,
@@ -163,22 +192,75 @@ object ProfileStore {
             protocol = remote?.third ?: "udp",
             isCustom = isCustom,
             engine = VpnEngine.OPENVPN,
-            notes = compat.changes
+            notes = compat.changes,
+            issue = diagnoseOpenVpn(compat.config, needsCredentials),
+            needsCredentials = needsCredentials
         )
     }
 
-    // ------------------------------------------------------------------- Tor
+    /**
+     * `auth-user-pass` satirini uygulama alanindaki bir kimlik dosyasina
+     * yonlendirir. OVPN3 bu dosyayi okuyup kullanici adi/parola ile kimlik
+     * dogrulamasi yapabilir; boylece parola isteyen profiller de calisir.
+     */
+    fun withCredentials(context: Context, config: String, username: String, password: String): String {
+        val file = java.io.File(context.filesDir, "profiles/credentials.txt")
+        file.parentFile?.mkdirs()
+        file.writeText(username + "\n" + password + "\n")
+        val directive = "auth-user-pass ${file.absolutePath}"
+        var replaced = false
+        val updated = config.lineSequence().joinToString("\n") { line ->
+            if (line.trimStart().startsWith("auth-user-pass")) {
+                replaced = true
+                directive
+            } else {
+                line
+            }
+        }
+        return if (replaced) updated else "$updated\n$directive\n"
+    }
 
-    /** Tor secenegi: tuneli Orbot yonetir, uygulama yalnizca yonlendirir. */
-    private fun torProfile(context: Context): VpnProfile = VpnProfile(
-        displayName = context.getString(R.string.profile_tor_name),
-        config = "",
-        host = context.getString(R.string.profile_tor_endpoint),
-        port = 0,
-        protocol = "tor",
-        isCustom = false,
-        engine = VpnEngine.TOR
-    )
+    /**
+     * OVPN3'un baglanmak icin gercekten ihtiyac duydugu alanlari kontrol eder.
+     *
+     * Bu kontrol olmadan eksik/sablon bir profil ile "Baglan" denendiginde
+     * cekirdek sessizce tekrar tekrar deniyor, kullanici ise sonsuz
+     * "Baglaniyor" ekraninda kaliyordu.
+     */
+    private fun diagnoseOpenVpn(config: String, needsCredentials: Boolean): ProfileIssue? {
+        if (config.isBlank() || !isValidOpenVpn(config)) return ProfileIssue.MISSING_CONFIG
+
+        // Gomulu ornek dosya: gercek sertifika/sunucu degeri icermez.
+        if (config.contains("ornek-sunucu", ignoreCase = true) ||
+            config.contains("Sunucunuzun CA sertifikas", ignoreCase = true) ||
+            config.contains("Istemci sertifikas", ignoreCase = true)
+        ) {
+            return ProfileIssue.TEMPLATE
+        }
+
+        val caBlock = blockContent(config, "ca")
+        val hasCa = caBlock?.let { CERT_BEGIN.containsMatchIn(it) } == true
+        if (!hasCa) {
+            // `ca dosya.crt` gibi harici referanslar uygulama alaninda yoktur.
+            return ProfileIssue.NO_CA
+        }
+
+        val certBlock = blockContent(config, "cert")
+        val keyBlock = blockContent(config, "key")
+        val hasCert = certBlock?.let { CERT_BEGIN.containsMatchIn(it) } == true
+        val hasKey = keyBlock?.let { KEY_BEGIN.containsMatchIn(it) } == true
+        if ((!hasCert || !hasKey) && !needsCredentials) return ProfileIssue.NO_CLIENT_CERT
+
+        return null
+    }
+
+    private fun blockContent(config: String, tag: String): String? {
+        val start = config.indexOf("<$tag>")
+        if (start < 0) return null
+        val end = config.indexOf("</$tag>", start)
+        if (end < 0) return null
+        return config.substring(start + tag.length + 2, end)
+    }
 
     /** Yapilandirmada en az bir `remote` satiri ve bir istemci tanimi olmali. */
     private fun isValidOpenVpn(config: String): Boolean {
@@ -231,7 +313,8 @@ object ProfileStore {
             port = 0,
             protocol = "wireguard",
             isCustom = false,
-            engine = VpnEngine.WIREGUARD
+            engine = VpnEngine.WIREGUARD,
+            issue = ProfileIssue.MISSING_CONFIG
         )
     }
 
@@ -249,7 +332,8 @@ object ProfileStore {
             port = endpoint?.second ?: DEFAULT_WIREGUARD_PORT,
             protocol = "wireguard",
             isCustom = isCustom,
-            engine = VpnEngine.WIREGUARD
+            engine = VpnEngine.WIREGUARD,
+            issue = if (config.isBlank()) ProfileIssue.MISSING_CONFIG else null
         )
     }
 
@@ -267,11 +351,11 @@ object ProfileStore {
         config.lineSequence().forEach { rawLine ->
             val line = rawLine.trim()
             if (!line.startsWith("Endpoint", ignoreCase = true)) return@forEach
-            val value = line.substringAfter('=', "").trim()
+            val value = line.substringAfter('=', "").trim().trimEnd(',')
             if (value.isEmpty()) return@forEach
             val separator = value.lastIndexOf(':')
             if (separator <= 0) return@forEach
-            val host = value.substring(0, separator)
+            val host = value.substring(0, separator).removePrefix("[").removeSuffix("]")
             val port = value.substring(separator + 1).toIntOrNull() ?: DEFAULT_WIREGUARD_PORT
             return host to port
         }

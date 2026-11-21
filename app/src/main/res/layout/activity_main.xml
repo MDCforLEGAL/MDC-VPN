@@ -289,20 +289,6 @@
                     android:textAllCaps="false"
                     android:textSize="12sp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/torButton"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:letterSpacing="0"
-                    android:minWidth="0dp"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp"
-                    android:text="@string/protocol_tor"
-                    android:textAllCaps="false"
-                    android:textSize="12sp" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
         </LinearLayout>
 

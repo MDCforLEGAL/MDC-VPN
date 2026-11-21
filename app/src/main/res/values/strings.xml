@@ -64,6 +64,21 @@
     <string name="error_wireguard_invalid">Seçilen dosya geçerli bir WireGuard yapılandırması değil.</string>
     <string name="error_vpn_permission_denied">VPN izni verilmedi; tünel açılamadı.</string>
     <string name="error_connection_failed">Bağlantı kurulamadı: %1$s</string>
+    <string name="error_profile_not_ready">Profil bağlanmaya hazır değil. Ayarlar → Profili sıfırla veya yeni bir .ovpn dosyası içe aktarın.</string>
+    <string name="error_connect_rejected">Sunucu bağlantıyı reddetti veya tünel kurulamadı. Profildeki sunucu adresi, port ve sertifikaları kontrol edin.</string>
+    <string name="error_connect_timeout">Sunucuya ulaşılamadı. Sunucu adresini, portu, UDP/TCP seçimini ve internet bağlantınızı kontrol edin.</string>
+
+    <!-- Profil hazırlığı -->
+    <string name="profile_issue_title">Profil bağlanmaya hazır değil</string>
+    <string name="profile_issue_missing">Henüz bir yapılandırma yüklenmemiş. OpenVPN için .ovpn, WireGuard için .conf dosyası içe aktarın.</string>
+    <string name="profile_issue_template">Gömülü varsayılan profil yalnızca bir şablondur; gerçek sunucu adresi ve sertifikalar içermez. Sunucunuzun kendi .ovpn dosyasını içe aktarın.</string>
+    <string name="profile_issue_no_ca">Profilde sunucu sertifikasını doğrulayacak CA sertifikası yok. Profilin içine &lt;ca&gt; bloğunu ekleyin (harici dosya referansı Android\'de okunamaz).</string>
+    <string name="profile_issue_no_cert">Profide istemci sertifikası veya özel anahtarı eksik. &lt;cert&gt; ve &lt;key&gt; bloklarını profilin içine gömün.</string>
+    <string name="credentials_title">Sunucu kimliği</string>
+    <string name="credentials_message">Bu profil kullanıcı adı ve parola ile kimlik doğrulaması istiyor. Bilgiler yalnızca bu bağlantı için cihazda tutulur.</string>
+    <string name="credentials_username">Kullanıcı adı</string>
+    <string name="credentials_password">Parola</string>
+    <string name="credentials_required">Kullanıcı adı boş olamaz.</string>
 
     <!-- Ayarlar -->
     <string name="settings_title">Ayarlar</string>
@@ -148,20 +163,7 @@
     <string name="update_conflict_copied">Bağlantı kopyalandı</string>
     <string name="update_storage_permission">APK\'yı İndirilenler\'e kaydetmek için depolama izni gerekiyor.</string>
 
-    <!-- Tor ve eski sunucu uyumluluğu -->
-    <string name="protocol_tor">Tor</string>
-    <string name="profile_tor_name">Tor bağlantısı</string>
-    <string name="profile_tor_endpoint">Orbot üzerinden yönlendirilir</string>
-    <string name="tor_missing_title">Orbot gerekli</string>
-    <string name="tor_missing_message">Tor bağlantısı, cihazda Tor ağını çalıştıran ücretsiz Orbot uygulaması üzerinden yapılır; uygulamanın içinde Tor istemcisi gömülü değildir.\n\nOrbot\'u kurup açın, \"Tor\'u Başlat\" düğmesine basın ve VPN modunu etkinleştirin; tüm trafik Tor üzerinden gider.</string>
-    <string name="tor_download">Orbot\'u indir</string>
-    <string name="tor_opened">Orbot açıldı: \"Tor\'u Başlat\" ve VPN modunu etkinleştirin.</string>
-    <string name="tor_open_failed">Orbot açılamadı.</string>
-    <string name="error_tor_not_ready">Tor bağlantısı Orbot uygulaması üzerinden yönetilir.</string>
-    <string name="settings_section_tor">TOR</string>
-    <string name="settings_tor_desc">Tor, cihazdaki ücretsiz Orbot uygulamasıyla çalışır. Tor seçiliyken tüneli Orbot kurar; uygulama yalnızca Tor\'u başlatır.</string>
-    <string name="settings_open_orbot_title">Orbot\'u aç</string>
-    <string name="settings_open_orbot_desc">Tor ağını başlatır veya kurulum sayfasını açar</string>
+    <!-- Eski sunucu uyumluluğu -->
     <string name="settings_legacy_title">Eski sunucu uyumluluğu</string>
     <string name="settings_legacy_desc">BF-CBC, ns-cert-type, tls-remote, LZO ve TLS 1.0 gibi eski direktifleri OVPN3\'e uyarlar</string>
     <string name="legacy_applied_title">Eski sunucu uyumluluğu uygulandı</string>

@@ -8,6 +8,9 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
+import android.widget.EditText
+import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -19,12 +22,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.mdc.vpn.browser.BrowserActivity
+import com.mdc.vpn.data.ProfileIssue
 import com.mdc.vpn.data.ProfileStore
 import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.data.VpnProfile
 import com.mdc.vpn.databinding.ActivityMainBinding
 import com.mdc.vpn.settings.AppSettings
-import com.mdc.vpn.tor.Orbot
 import com.mdc.vpn.ui.UpdatePrompt
 import com.mdc.vpn.util.Formatters
 import com.mdc.vpn.util.Links
@@ -41,6 +44,10 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var profile: VpnProfile? = null
+
+    /** Oturum icinde hatirlanan sunucu kimligi (yalnizca oturum boyunca bellekte). */
+    private var credentialUser: String = ""
+    private var credentialPassword: String = ""
 
     private val vpnPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -85,7 +92,6 @@ class MainActivity : AppCompatActivity() {
             val engine = when (checkedId) {
                 R.id.openVpnButton -> VpnEngine.OPENVPN
                 R.id.wireGuardButton -> VpnEngine.WIREGUARD
-                R.id.torButton -> VpnEngine.TOR
                 else -> return@addOnButtonCheckedListener
             }
             onProtocolSelected(engine)
@@ -226,8 +232,6 @@ class MainActivity : AppCompatActivity() {
         val current = profile ?: return
         binding.profileName.text = current.displayName
         binding.profileServer.text = when {
-            current.engine == VpnEngine.TOR ->
-                getString(R.string.profile_tor_endpoint)
             current.engine == VpnEngine.WIREGUARD && !current.isConfigured ->
                 getString(R.string.profile_wireguard_import_hint)
             current.engine == VpnEngine.WIREGUARD ->
@@ -242,7 +246,6 @@ class MainActivity : AppCompatActivity() {
     private fun applyProtocolSelection(engine: VpnEngine) {
         val target = when (engine) {
             VpnEngine.WIREGUARD -> R.id.wireGuardButton
-            VpnEngine.TOR -> R.id.torButton
             VpnEngine.OPENVPN -> R.id.openVpnButton
         }
         if (binding.protocolToggle.checkedButtonId != target) {
@@ -283,13 +286,9 @@ class MainActivity : AppCompatActivity() {
         when (VpnConnectionManager.state.value) {
             VpnState.DISCONNECTED -> {
                 val current = profile ?: ProfileStore.load(this).also { profile = it }
-                if (current.engine == VpnEngine.TOR) {
-                    openTor()
-                    return
-                }
-                if (current.engine == VpnEngine.WIREGUARD && !current.isConfigured) {
-                    showMessage(getString(R.string.profile_wireguard_import_hint))
-                    pickProfile()
+                val issue = current.issue
+                if (issue != null) {
+                    showProfileIssue(issue)
                     return
                 }
                 requestVpnPermissionAndConnect()
@@ -310,7 +309,56 @@ class MainActivity : AppCompatActivity() {
 
     private fun startConnection() {
         val current = profile ?: ProfileStore.load(this).also { profile = it }
-        VpnConnectionManager.connect(current)
+        if (!current.needsCredentials) {
+            VpnConnectionManager.connect(current)
+            return
+        }
+        // auth-user-pass profilleri icin kimlik bilgisi sorulur ve OVPN3'un
+        // okuyabilecegi bir dosyaya yazilir; aksi halde cekirdek sunucuya
+        // kimligini hic gonderemez ve sonsuz yeniden baglanma dongusune girer.
+        promptCredentials { username, password ->
+            val secured = current.copy(
+                config = ProfileStore.withCredentials(this, current.config, username, password)
+            )
+            VpnConnectionManager.connect(secured)
+        }
+    }
+
+    private fun promptCredentials(onReady: (String, String) -> Unit) {
+        val density = resources.displayMetrics.density
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((22 * density).toInt(), 0, (22 * density).toInt(), 0)
+        }
+        val userField = EditText(this).apply {
+            hint = getString(R.string.credentials_username)
+            setText(credentialUser)
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+        val passwordField = EditText(this).apply {
+            hint = getString(R.string.credentials_password)
+            setText(credentialPassword)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        container.addView(userField)
+        container.addView(passwordField)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.credentials_title)
+            .setMessage(R.string.credentials_message)
+            .setView(container)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val user = userField.text.toString().trim()
+                if (user.isEmpty()) {
+                    showMessage(getString(R.string.credentials_required))
+                    return@setPositiveButton
+                }
+                credentialUser = user
+                credentialPassword = passwordField.text.toString()
+                onReady(credentialUser, credentialPassword)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun pickProfile() {
@@ -337,23 +385,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Tor secenegi: cihazda Tor calistiran Orbot uygulamasini baslatir. Yoksa
-     * ucretsiz indirme sayfasini onerir.
+     * Profil baglanmaya hazir degilse nedenini ve yapilmasi gerekeni gosterir.
+     * Eksik profil ile tunel acmayi denemek yerine kullanici dogru dosyaya
+     * yonlendirilir.
      */
-    private fun openTor() {
-        if (!Orbot.isInstalled(this)) {
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.tor_missing_title)
-                .setMessage(R.string.tor_missing_message)
-                .setPositiveButton(R.string.tor_download) { _, _ -> Orbot.openDownloadPage(this) }
-                .setNegativeButton(R.string.action_later, null)
-                .show()
-            return
+    private fun showProfileIssue(issue: ProfileIssue) {
+        val messageRes = when (issue) {
+            ProfileIssue.MISSING_CONFIG -> R.string.profile_issue_missing
+            ProfileIssue.TEMPLATE -> R.string.profile_issue_template
+            ProfileIssue.NO_CA -> R.string.profile_issue_no_ca
+            ProfileIssue.NO_CLIENT_CERT -> R.string.profile_issue_no_cert
         }
-        val opened = Orbot.start(this)
-        showMessage(
-            getString(if (opened) R.string.tor_opened else R.string.tor_open_failed)
-        )
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.profile_issue_title)
+            .setMessage(messageRes)
+            .setPositiveButton(R.string.action_choose_file) { _, _ -> pickProfile() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Ice aktarilan eski profilde hangi direktiflerin uyarlandigini gosterir. */
@@ -385,9 +433,7 @@ class MainActivity : AppCompatActivity() {
         if (!AppSettings.autoConnect(this)) return
         if (VpnConnectionManager.state.value != VpnState.DISCONNECTED) return
         val current = profile ?: return
-        // Tor'u otomatik baslatmak Orbot'un izin akisini atlar; kullanici secer.
-        if (current.engine == VpnEngine.TOR) return
-        if (current.engine == VpnEngine.WIREGUARD && !current.isConfigured) return
+        if (!current.isReady) return
         binding.root.postDelayed({ requestVpnPermissionAndConnect() }, 400L)
     }
 

@@ -1,4 +1,4 @@
-name: Build & Release APK
+name: Build & Release
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  android:
     name: Build signed APK
     runs-on: ubuntu-latest
 
@@ -39,7 +39,6 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # Her push'ta artan surum numarasi: v1.0.1, v1.0.2, ...
       - name: Compute version
         id: version
         run: |
@@ -47,10 +46,9 @@ jobs:
           VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
           echo "code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
           echo "name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION_NAME}" >> "$GITHUB_OUTPUT"
 
       # Opsiyonel imzalama: KEYSTORE_BASE64 tanimliysa gercek anahtar kullanilir,
-      # aksi halde APK debug anahtariyla imzalanir ve yine de kurulabilir olur.
+      # aksi halde APK sabit yedek anahtarla imzalanir ve yine de kurulabilir olur.
       - name: Decode release keystore
         if: env.HAS_KEYSTORE == 'true'
         run: |
@@ -77,17 +75,128 @@ jobs:
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk dist/MDC-VPN.apk
 
-      - name: Upload build artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: MDC-VPN-${{ steps.version.outputs.name }}
+          name: MDC-VPN-APK
           path: dist/MDC-VPN.apk
           if-no-files-found: error
+
+  windows:
+    name: Build Windows x64 app
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Compute version
+        id: version
+        shell: pwsh
+        run: |
+          $name = "1.0.${{ github.run_number }}"
+          "name=$name" >> $env:GITHUB_OUTPUT
+
+      - name: Build desktop jar
+        shell: pwsh
+        run: |
+          # Masaustu modulu bagimsiz bir Gradle yapisidir; Android SDK gerekmez.
+          .\gradlew.bat --no-daemon -p desktop jar "-PappVersion=${{ steps.version.outputs.name }}"
+
+      # OpenVPN Community kurulumundan yalnizca calistirilabilir dosyalar
+      # cikarilir; uygulama openvpn.exe'yi kendi klasorunden calistirir.
+      - name: Extract OpenVPN
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $msi = Join-Path $env:RUNNER_TEMP "openvpn.msi"
+          $url = "https://swupdate.openvpn.org/community/releases/OpenVPN-2.7.9-I002-amd64.msi"
+          Invoke-WebRequest -Uri $url -OutFile $msi
+          $extract = Join-Path $env:RUNNER_TEMP "openvpn-extract"
+          New-Item -ItemType Directory -Path $extract -Force | Out-Null
+          Start-Process msiexec.exe -ArgumentList "/a `"$msi`" /qn TARGETDIR=`"$extract`"" -Wait
+          $exe = $null
+          for ($i = 0; $i -lt 10 -and -not $exe; $i++) {
+            $exe = Get-ChildItem -Path $extract -Filter openvpn.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $exe) { Start-Sleep -Seconds 2 }
+          }
+          # Bazi MSI surumlerinde idari kurulum dosyalari beklenen yere
+          # acilmazsa 7-Zip ile yedek cikarma yapilir.
+          if (-not $exe) {
+            New-Item -ItemType Directory -Path $extract -Force | Out-Null
+            7z x $msi "-o$extract" -y | Out-Null
+            $exe = Get-ChildItem -Path $extract -Filter openvpn.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if (-not $exe) { throw "openvpn.exe cikarilamadi" }
+          "OPENVPN_BIN=$($exe.Directory.FullName)" >> $env:GITHUB_ENV
+          Get-ChildItem $exe.Directory.FullName | Select-Object Name
+
+      - name: Package app image
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.name }}"
+          jpackage --type app-image --name "MDC-VPN" --app-version $version `
+            --input "desktop\build\libs" `
+            --main-jar "mdc-vpn-desktop-$version.jar" `
+            --main-class com.mdc.vpn.desktop.Main `
+            --icon "desktop\icon.ico" `
+            --dest "dist\windows"
+          if (-not (Test-Path "dist\windows\MDC-VPN\MDC-VPN.exe")) { throw "MDC-VPN.exe uretilmedi" }
+
+      - name: Bundle OpenVPN
+        shell: pwsh
+        run: |
+          $target = "dist\windows\MDC-VPN\openvpn"
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          Copy-Item "$env:OPENVPN_BIN\*" $target -Recurse -Force
+          Copy-Item "desktop\openvpn-notice.txt" "dist\windows\MDC-VPN\OPENVPN-NOTICE.txt" -Force
+          if (-not (Test-Path "$target\openvpn.exe")) { throw "openvpn.exe kopyalanamadi" }
+
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "dist\windows\MDC-VPN" -DestinationPath "dist\MDC-VPN-Windows-x64.zip" -Force
+
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: MDC-VPN-Windows
+          path: dist/MDC-VPN-Windows-x64.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: [ android, windows ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: MDC-VPN-APK
+          path: dist-apk
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: MDC-VPN-Windows
+          path: dist-win
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: MDC VPN ${{ steps.version.outputs.name }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: MDC VPN 1.0.${{ github.run_number }}
           generate_release_notes: true
-          files: dist/MDC-VPN.apk
+          files: |
+            dist-apk/MDC-VPN.apk
+            dist-win/MDC-VPN-Windows-x64.zip

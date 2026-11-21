@@ -25,11 +25,6 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
-    <!-- Tor secenegi icin Orbot uygulamasinin varligini sorgulayabilmek gerekir. -->
-    <queries>
-        <package android:name="org.torproject.android" />
-    </queries>
-
     <!--
         BIND_VPN_SERVICE sistem tarafindan atanan bir signature iznidir; uygulama
         bu izni elde edemez. Gercek zorunluluk servis tanimindaki

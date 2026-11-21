@@ -1,0 +1,35 @@
+// Windows x64 masaustu surumu. Android modulunden bagimsizdir; harici
+// kutuphane kullanmaz, bu yuzden jpackage ile tek bir uygulama klasorune
+// paketlenebilir.
+plugins {
+    id 'java'
+    id 'application'
+}
+
+def appVersion = (findProperty('appVersion') ?: '1.0.0').toString()
+
+group = 'com.mdc.vpn'
+version = appVersion
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+application {
+    mainClass = 'com.mdc.vpn.desktop.Main'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    archiveBaseName = 'mdc-vpn-desktop'
+    manifest {
+        attributes(
+                'Main-Class': 'com.mdc.vpn.desktop.Main',
+                'Implementation-Version': appVersion
+        )
+    }
+}

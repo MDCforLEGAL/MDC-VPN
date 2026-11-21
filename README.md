@@ -1,8 +1,12 @@
 # MDC VPN
 
-Kurumsal, sade ve göz yormayan bir koyu temaya sahip Android VPN istemcisi.
-Gerçek tünel **OpenVPN 3** çekirdeği (`ics-openvpn` / OVPN3) ile Android'in
-yerleşik `VpnService` altyapısı üzerinde kurulur.
+Kurumsal, sade ve göz yormayan bir koyu temaya sahip VPN istemcisi.
+Aynı depoda iki sürüm bulunur: **Android** (Kotlin + `VpnService`) ve
+**Windows x64** (Java/Swing + OpenVPN / WireGuard).
+
+Gerçek tünel Android'de **OpenVPN 3** çekirdeği (`ics-openvpn` / OVPN3) ile
+Android'in yerleşik `VpnService` altyapısı üzerinde, Windows'ta ise paketlenen
+OpenVPN Community istemcisi veya kurulu WireGuard ile kurulur.
 
 | | |
 |---|---|
@@ -35,10 +39,13 @@ indirme/yükleme hızı ve `.ovpn` profil seçimi.
 - Anlık durum: *Bağlı değil · Bağlanıyor · Güvende · Kesiliyor*
 - Oturum süresi sayacı, indirme/yükleme hızı göstergesi
 - Kalıcı (foreground) bildirim: süre kronometresi + **Bağlantıyı Kes** aksiyonu
-- Gömülü `assets/default.ovpn` profili
-- Dosya seçiciden kendi `.ovpn` dosyasını içe aktarma (uygulama özel alanına kopyalanır)
+- OpenVPN ve WireGuard protokolleri
+- Dosya seçiciden kendi `.ovpn` / `.conf` dosyasını içe aktarma (uygulama özel alanına kopyalanır)
+- Eski sunucu uyumluluğu (BF-CBC, `ns-cert-type`, `tls-remote`, LZO, TLS 1.0)
+- `auth-user-pass` profillerinde kullanıcı adı/parola sorma
+- Eksik veya şablon profilde bağlanmayı denemek yerine nedeni açıklama
 - Süreç öldürülüp yeniden açıldığında açık tünelin durumunu geri yükleme
-- Bağlantı 45 saniyede kurulamazsa otomatik vazgeçme
+- Bağlantı 45 saniyede kurulamazsa otomatik vazgeçme ve gerçek hatayı gösterme
 
 ## Mimari
 
@@ -68,6 +75,35 @@ MainActivity ──► VpnConnectionManager ──► OpenVPNService (ayrı sür
 istemcisini (`libovpn3.so`, dört ABI) Android `VpnService` ile birleştirir;
 `assets` içindeki `.ovpn` metnini doğrudan çekirdeğe verir. Böylece OpenVPN
 protokolünü yeniden yazmadan gerçek bir tünel kurulur.
+
+## Windows x64 sürümü
+
+`desktop/` modülü, Android modülünden bağımsız bir Java/Swing uygulamasıdır.
+Harici kütüphane kullanmaz; `jpackage` ile `MDC-VPN.exe` üreten portatif bir
+klasöre dönüştürülür.
+
+- Arayüz aynı kurumsal koyu temayı kullanır: durum halkası, tek tuşla
+  bağlan/kes, süre ve indirme/yükleme hızı, profil ve protokol seçimi, günlük.
+- **OpenVPN**: paket içindeki `openvpn\openvpn.exe` gizli pencerede çalışır;
+  durum ve trafik yerel yönetim arayüzünden okunur. Wintun sürücüsü kullanılır.
+- **WireGuard**: cihazda kurulu [WireGuard for Windows](https://www.wireguard.com/install/)
+  istemcisini kullanır.
+- Tünel açmak için **yönetici izni** gerekir; uygulama gerekirse UAC ile kendini
+  yeniden başlatmayı önerir.
+- Profiller `%APPDATA%\MDC VPN\profiles` altında, günlükler `logs` altında tutulur.
+- `auth-user-pass` profilleri için kullanıcı adı/parola sorulur ve yalnızca
+  bağlantı süresince geçici bir dosyada tutulur.
+
+```powershell
+# Yalnızca JAR (JDK 17 yeterli)
+.\gradlew.bat -p desktop jar -PappVersion=1.0.9
+
+# Windows'ta uygulama klasörü
+# (JAR -> desktop\build\libs\mdc-vpn-desktop-1.0.9.jar)
+jpackage --type app-image --name MDC-VPN --app-version 1.0.9 `
+  --input desktop\build\libs --main-jar mdc-vpn-desktop-1.0.9.jar `
+  --main-class com.mdc.vpn.desktop.Main --icon desktop\icon.ico --dest dist\windows
+```
 
 ## Derleme
 
@@ -104,12 +140,15 @@ depolarda da CI kırılmaz (APK yine kurulabilir, ancak Play Store'a yüklenemez
 
 ## GitHub Actions (otomatik sürüm)
 
-`.github/workflows/release.yml` her `main` push'unda çalışır:
+`.github/workflows/release.yml` her `main` push'unda üç iş çalıştırır:
 
 1. `versionCode = 1000 + run_number`, `versionName = 1.0.<run_number>`
-2. Release APK derlenir ve `MDC-VPN.apk` olarak yeniden adlandırılır
-3. `v1.0.<run_number>` etiketiyle GitHub Release oluşturulur, APK eklenir
-4. APK ayrıca iş akışı artefaktı olarak saklanır
+2. **android**: Release APK derlenir, `MDC-VPN.apk` olarak yeniden adlandırılır
+3. **windows**: `desktop` JAR'ı derlenir, OpenVPN Community MSI'ından çıkarılan
+   `openvpn.exe` ile birlikte `jpackage` uygulama klasörü üretilir ve
+   `MDC-VPN-Windows-x64.zip` olarak paketlenir
+4. **release**: `v1.0.<run_number>` etiketiyle GitHub Release oluşturulur ve
+   iki dosya da eklenir: `MDC-VPN.apk`, `MDC-VPN-Windows-x64.zip`
 
 ### Depo ayarları
 
@@ -129,9 +168,9 @@ depolarda da CI kırılmaz (APK yine kurulabilir, ancak Play Store'a yüklenemez
 
 - Yapılandırmalar uygulama özel alanında tutulur, `allowBackup=false`.
 - Özel anahtar içeren `.ovpn` dosyaları cihaz yedeğine dâhil edilmez.
-- Bu sürüm **sertifika tabanlı** profiller içindir. `auth-user-pass` (kullanıcı
-  adı/parola) akışı OVPN3 istemcisinde ek kimlik sağlayıcı gerektirdiği için
-  kapsam dışıdır.
+- `auth-user-pass` profillerinde girilen kullanıcı adı/parola uygulama özel
+  alanındaki bir dosyaya yazılır ve OVPN3'e bu dosya üzerinden verilir; dosya
+  cihaz yedeğine dâhil edilmez. Windows sürümünde dosya bağlantı kapanınca silinir.
 - `assets/default.ovpn` bir şablondur; gerçek sunucu bilgileri ve sertifikalarla
   değiştirilmeden bağlantı kurulmaz.
 - `foregroundServiceType="specialUse"` Google Play'de gerekçe beyanı gerektirir.

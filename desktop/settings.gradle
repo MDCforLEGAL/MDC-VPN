@@ -1,0 +1,4 @@
+// Masaustu surumu Android modulunden bagimsiz derlenebilir:
+//   ./gradlew -p desktop jar
+// Boylece Windows derleme isi Android SDK gerektirmez.
+rootProject.name = 'mdc-vpn-desktop'
