@@ -914,7 +914,11 @@ public final class MainWindow {
         content.add(section("GÜNCELLEMELER",
                 settingRow("Sürüm", hint("MDC VPN " + version() + " • Windows x64"), null, null),
                 divider(),
-                settingRow("Güncellemeleri denetle", hint("En son sürümü GitHub'da açar"),
+                settingRow("Uygulamayı güncelle",
+                        hint("Yeni sürümü indirir, kurar ve uygulamayı yeniden başlatır"),
+                        null, this::checkForUpdates),
+                divider(),
+                settingRow("Sürüm notları", hint("GitHub'daki sürüm sayfasını açar"),
                         null, () -> browse(RELEASES)),
                 divider(),
                 settingRow("Diğer içeriklerim", hint(LINKS), null, () -> browse(LINKS))));
@@ -973,6 +977,91 @@ public final class MainWindow {
         dialog.setVisible(true);
         fillZapretPresets();
         renderZapret();
+    }
+
+    /** GitHub'daki en son surumu denetler ve varsa indirmeyi baslatir. */
+    private void checkForUpdates() {
+        appendLog("Güncellemeler denetleniyor…");
+        Thread worker = new Thread(() -> {
+            try {
+                Updater.Release release = Updater.check();
+                SwingUtilities.invokeLater(() -> {
+                    if (release == null) {
+                        appendLog("Uygulama güncel: v" + version());
+                        JOptionPane.showMessageDialog(frame, "Uygulama güncel: v" + version(),
+                                "Güncellemeler", JOptionPane.INFORMATION_MESSAGE);
+                        return;
+                    }
+                    appendLog("Yeni sürüm bulundu: v" + release.version());
+                    int answer = JOptionPane.showConfirmDialog(frame,
+                            "Sürüm " + release.version() + " yayınlandı.\n\n"
+                                    + "Şimdi indirilip kurulsun mu? Kurulumdan sonra uygulama yeniden başlar.",
+                            "Güncelleme bulundu", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                    if (answer == JOptionPane.YES_OPTION) downloadUpdate(release);
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> showError("Güncelleme denetlenemedi: " + ex.getMessage()));
+            }
+        }, "update-check");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /** Indirme ilerlemesini gosterir, sonra kurulumu baslatir. */
+    private void downloadUpdate(Updater.Release release) {
+        JDialog progress = new JDialog(frame, "Güncelleme", true);
+        progress.setUndecorated(true);
+        progress.setBackground(translucencySupported() ? new Color(0, 0, 0, 0) : Theme.BG);
+        progress.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+
+        Theme.WindowPanel panel = new Theme.WindowPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 22, 20, 22));
+
+        JLabel status = Theme.label("Güncelleme indiriliyor… %0", Theme.medium(13f), Theme.TEXT);
+        status.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel detail = Theme.label("v" + release.version() + " • MDC-VPN-Windows-x64.zip",
+                Theme.regular(11f), Theme.SECONDARY);
+        detail.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(status);
+        panel.add(Box.createVerticalStrut(6));
+        panel.add(detail);
+
+        progress.setContentPane(panel);
+        progress.setSize(360, 104);
+        progress.setLocationRelativeTo(frame);
+
+        Thread worker = new Thread(() -> {
+            try {
+                Path zip = Updater.download(release, percent -> SwingUtilities.invokeLater(() ->
+                        status.setText("Güncelleme indiriliyor… %" + percent)));
+                SwingUtilities.invokeLater(() -> status.setText("Kurulum hazırlanıyor…"));
+                Updater.apply(zip);
+                SwingUtilities.invokeLater(() -> {
+                    progress.dispose();
+                    appendLog("Güncelleme indirildi; uygulama yeniden başlatılıyor.");
+                    JOptionPane.showMessageDialog(frame,
+                            "Güncelleme uygulanacak. Uygulama şimdi kapanıp yeniden başlayacak.",
+                            "Güncelleme", JOptionPane.INFORMATION_MESSAGE);
+                    restartForUpdate();
+                });
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> {
+                    progress.dispose();
+                    showError("Güncelleme kurulamadı: " + ex.getMessage());
+                });
+            }
+        }, "update-download");
+        worker.setDaemon(true);
+        worker.start();
+        progress.setVisible(true);
+    }
+
+    private void restartForUpdate() {
+        ticker.stop();
+        zapret.stop();
+        frame.dispose();
+        System.exit(0);
     }
 
     private void resetProfileFromSettings(JDialog dialog) {
