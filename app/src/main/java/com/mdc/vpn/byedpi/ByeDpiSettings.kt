@@ -46,6 +46,29 @@ object ByeDpiSettings {
             R.string.byedpi_preset_tlsrec,
             listOf("--tlsrec", "1+s", "--split", "1+s")
         ),
+        // Superonline (Turkcell) DPI'i SNI üzerinden resetlediği için TLS
+        // ClientHello'nun SNI alanından bölünmesi gerekir; bu stratejiler
+        // Superonline hatlarında yaygın çalışan varyantlardır.
+        ByeDpiPreset(
+            "superonline-split",
+            R.string.byedpi_preset_superonline_split,
+            listOf("--split", "1+s", "--disorder", "1+s")
+        ),
+        ByeDpiPreset(
+            "superonline-oob",
+            R.string.byedpi_preset_superonline_oob,
+            listOf("--split", "1+s", "--oob", "1+s")
+        ),
+        ByeDpiPreset(
+            "superonline-fake",
+            R.string.byedpi_preset_superonline_fake,
+            listOf("--fake", "-1", "--ttl", "6", "--split", "1+s")
+        ),
+        ByeDpiPreset(
+            "superonline-tlsrec",
+            R.string.byedpi_preset_superonline_tlsrec,
+            listOf("--tlsrec", "1+s", "--split", "1+s", "--disorder", "1+s")
+        ),
         ByeDpiPreset(CUSTOM, R.string.byedpi_preset_custom, emptyList())
     )
 

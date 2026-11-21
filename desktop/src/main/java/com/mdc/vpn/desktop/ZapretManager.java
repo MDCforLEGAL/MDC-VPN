@@ -121,6 +121,35 @@ public final class ZapretManager {
         lastError = "";
 
         Path exe = executable(preset.engine());
+        Path dir = directory();
+        List<String> args = arguments(preset, onlyListed);
+
+        handle = AppPaths.launchHidden(exe, args, dir);
+        active = preset;
+
+        // WinDivert surucusu yuklenemezse winws hemen kapanir.
+        try {
+            TimeUnit.MILLISECONDS.sleep(1_200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if (!handle.isAlive()) {
+            handle = null;
+            active = null;
+            lastError = "Zapret başlatılamadı; süreç hemen kapandı. "
+                    + "Yönetici iznini ve WinDivert sürücüsünü kontrol edin.";
+            throw new IOException(lastError);
+        }
+
+        saveSelection(preset.engine(), preset.id(), onlyListed);
+    }
+
+    /**
+     * Bir stratejinin winws argumanlarini (mutlak yollarla) uretir.
+     * Hem normal baslatma hem de servis tanimi ayni listeyi kullanir.
+     */
+    public static List<String> arguments(Preset preset, boolean onlyListed) throws IOException {
+        Path exe = executable(preset.engine());
         if (!Files.isRegularFile(exe)) {
             throw new IOException("Zapret bulunamadı. Beklenen konum: " + exe
                     + "\n\nMDC VPN Windows paketi zapret klasörünü içerir; "
@@ -158,25 +187,7 @@ public final class ZapretManager {
             args.add("--lua-init=@" + lua.resolve("zapret-antidpi.lua"));
             args.add("--lua-init=@" + lua.resolve("zapret-auto.lua"));
         }
-
-        handle = AppPaths.launchHidden(exe, args, dir);
-        active = preset;
-
-        // WinDivert surucusu yuklenemezse winws hemen kapanir.
-        try {
-            TimeUnit.MILLISECONDS.sleep(1_200);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        if (!handle.isAlive()) {
-            handle = null;
-            active = null;
-            lastError = "Zapret başlatılamadı; süreç hemen kapandı. "
-                    + "Yönetici iznini ve WinDivert sürücüsünü kontrol edin.";
-            throw new IOException(lastError);
-        }
-
-        saveSelection(preset.engine(), preset.id(), onlyListed);
+        return args;
     }
 
     public synchronized void stop() {

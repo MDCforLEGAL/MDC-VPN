@@ -119,7 +119,7 @@ public final class MainWindow {
         // kendi koyu yuzeyinin parcasi olur.
         frame.setUndecorated(true);
         frame.setBackground(translucencySupported() ? new Color(0, 0, 0, 0) : Theme.BG);
-        frame.setSize(520, 840);
+        frame.setSize(520, 880);
         frame.setResizable(false);
         frame.setLocationRelativeTo(null);
         frame.addWindowListener(new WindowAdapter() {
@@ -344,6 +344,14 @@ public final class MainWindow {
         controls.add(zapretButton, BorderLayout.EAST);
         card.add(controls);
 
+        card.add(Box.createVerticalStrut(7));
+        Theme.Button autoFind = new Theme.Button("Stratejiyi otomatik bul", false);
+        autoFind.setFont(Theme.regular(12f));
+        autoFind.setPreferredSize(new Dimension(0, 32));
+        autoFind.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        autoFind.addActionListener(e -> autoFindStrategy(autoFind));
+        card.add(autoFind);
+
         fillZapretPresets();
         renderZapret();
         return card;
@@ -413,6 +421,61 @@ public final class MainWindow {
             showError(ex.getMessage());
         }
         renderZapret();
+    }
+
+    /**
+     * Butun stratejileri arka planda dener ve engeli gercekten asani secer.
+     */
+    private void autoFindStrategy(Theme.Button button) {
+        if (!ensureElevated("Stratejileri denemek için yönetici izni gerekiyor.")) return;
+        button.setEnabled(false);
+        zapretButton.setEnabled(false);
+
+        Thread worker = new Thread(() -> {
+            DpiStrategyFinder finder = new DpiStrategyFinder(zapret, message ->
+                    SwingUtilities.invokeLater(() -> {
+                        zapretStatus.setText(message);
+                        zapretStatus.setForeground(Theme.ACCENT);
+                    }));
+            DpiStrategyFinder.Result result = finder.find(zapretOnlyListed);
+
+            SwingUtilities.invokeLater(() -> {
+                button.setEnabled(true);
+                if (result.preset() != null) {
+                    zapretEngine = result.preset().engine();
+                    ZapretManager.saveSelection(zapretEngine, result.preset().id(), zapretOnlyListed);
+                    fillZapretPresets();
+                    appendLog("Otomatik bulundu: " + result.detail());
+                } else {
+                    appendLog("Otomatik bulucu: " + result.detail());
+                    JOptionPane.showMessageDialog(frame, result.detail(), "DPI stratejisi",
+                            result.bypassNeeded()
+                                    ? JOptionPane.WARNING_MESSAGE
+                                    : JOptionPane.INFORMATION_MESSAGE);
+                }
+                renderZapret();
+            });
+        }, "dpi-autodetect");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /** Yonetici izni yoksa UAC ile yeniden baslatmayi onerir. */
+    private boolean ensureElevated(String message) {
+        if (AppPaths.isElevated()) return true;
+        int answer = JOptionPane.showConfirmDialog(frame,
+                message + "\n\nUygulama yönetici olarak yeniden başlatılsın mı?",
+                "Yönetici izni gerekli", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return false;
+        try {
+            AppPaths.relaunchElevated();
+            zapret.stop();
+            frame.dispose();
+            System.exit(0);
+        } catch (IOException ex) {
+            showError("Yönetici olarak başlatılamadı: " + ex.getMessage());
+        }
+        return false;
     }
 
     private void renderZapret() {
@@ -800,6 +863,32 @@ public final class MainWindow {
             ZapretManager.saveSelection(zapretEngine, selectedZapretPresetId(), zapretOnlyListed);
         });
 
+        Theme.Switch serviceSwitch = new Theme.Switch();
+        serviceSwitch.setSelected(ZapretService.isInstalled());
+        serviceSwitch.addActionListener(e -> {
+            boolean want = serviceSwitch.isSelected();
+            if (want && !AppPaths.isElevated()) {
+                serviceSwitch.setSelected(false);
+                ensureElevated("Servisi kurmak için yönetici izni gerekiyor.");
+                return;
+            }
+            try {
+                if (want) {
+                    ZapretManager.Preset preset = currentZapretPreset();
+                    if (preset == null) throw new IOException("Önce bir strateji seçin.");
+                    ZapretService.install(preset, zapretOnlyListed);
+                    appendLog("DPI servisi kuruldu: " + preset.name()
+                            + " (açılışta otomatik çalışır)");
+                } else {
+                    ZapretService.uninstall();
+                    appendLog("DPI servisi kaldırıldı.");
+                }
+            } catch (Exception ex) {
+                serviceSwitch.setSelected(!want);
+                showError("Servis işlemi başarısız: " + ex.getMessage());
+            }
+        });
+
         content.add(section("DPI ATLATMA (ZAPRET)",
                 padded(zapretRow),
                 divider(),
@@ -811,6 +900,11 @@ public final class MainWindow {
                 settingRow("Yalnızca listedeki siteler",
                         hint("Kapalıyken tüm trafik işlenir; açıkken hostlist.txt kullanılır"),
                         onlyListed, null),
+                divider(),
+                settingRow("Servis olarak yükle",
+                        hint("Seçilen stratejiyi Windows açılışında SYSTEM yetkisiyle başlatır; "
+                                + "oturum açmak gerekmez"),
+                        serviceSwitch, null),
                 divider(),
                 hintBlock("Zapret, WinDivert sürücüsü üzerinden TCP/UDP paketlerini yeniden düzenler. "
                         + "Başlatmak için yönetici izni gerekir; strateji ve motor seçimi ana ekrandaki "
@@ -922,6 +1016,12 @@ public final class MainWindow {
         int index = zapretPreset.getSelectedIndex();
         if (index < 0 || index >= zapretPresets.size()) return ZapretManager.savedPresetId();
         return zapretPresets.get(index).id();
+    }
+
+    private ZapretManager.Preset currentZapretPreset() {
+        int index = zapretPreset.getSelectedIndex();
+        if (index < 0 || index >= zapretPresets.size()) return null;
+        return zapretPresets.get(index);
     }
 
     // ------------------------------------------------------- ayar bilesenleri

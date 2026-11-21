@@ -178,6 +178,10 @@
     <string name="byedpi_preset_strong">Güçlü (split 1+s + disorder 3+s)</string>
     <string name="byedpi_preset_fake">Sahte paket (TTL 8)</string>
     <string name="byedpi_preset_tlsrec">TLS kayıt bölme (tlsrec)</string>
+    <string name="byedpi_preset_superonline_split">Superonline (SNI bölme + ters sıra)</string>
+    <string name="byedpi_preset_superonline_oob">Superonline (OOB bölme)</string>
+    <string name="byedpi_preset_superonline_fake">Superonline (sahte paket + TTL 6)</string>
+    <string name="byedpi_preset_superonline_tlsrec">Superonline (TLS kayıt + bölme)</string>
     <string name="byedpi_preset_custom">Özel argümanlar…</string>
     <string name="byedpi_custom_title">Özel ByeDPI argümanları</string>
     <string name="byedpi_custom_message">ciadpi\'ye verilecek argümanlar. Örnek: --split 1+s --disorder 3+s</string>
