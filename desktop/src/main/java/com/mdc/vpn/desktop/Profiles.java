@@ -294,6 +294,17 @@ public final class Profiles {
         return Boolean.parseBoolean(prefs().getProperty("legacy", "true"));
     }
 
+    /** Uygulama acilirken tuneli kendiliginden kur. */
+    public static boolean autoConnect() {
+        return Boolean.parseBoolean(prefs().getProperty("auto_connect", "false"));
+    }
+
+    public static void setAutoConnect(boolean enabled) {
+        Properties properties = prefs();
+        properties.setProperty("auto_connect", Boolean.toString(enabled));
+        savePrefs(properties);
+    }
+
     public static void setLegacy(boolean enabled) {
         Properties properties = prefs();
         properties.setProperty("legacy", Boolean.toString(enabled));

@@ -75,6 +75,7 @@ public final class ZapretManager {
 
     private static final String KEY_ENGINE = "zapret.engine";
     private static final String KEY_PRESET = "zapret.preset";
+    private static final String KEY_ONLY_LISTED = "zapret.only_listed";
 
     private ProcessHandle handle;
     private Preset active;
@@ -175,7 +176,7 @@ public final class ZapretManager {
             throw new IOException(lastError);
         }
 
-        saveSelection(preset.engine(), preset.id());
+        saveSelection(preset.engine(), preset.id(), onlyListed);
     }
 
     public synchronized void stop() {
@@ -202,15 +203,20 @@ public final class ZapretManager {
         return readSetting(KEY_PRESET, "");
     }
 
-    private static void saveSelection(Engine engine, String presetId) {
+    public static void saveSelection(Engine engine, String presetId, boolean onlyListed) {
         Properties properties = loadSettings();
         properties.setProperty(KEY_ENGINE, engine.name());
         properties.setProperty(KEY_PRESET, presetId);
+        properties.setProperty(KEY_ONLY_LISTED, Boolean.toString(onlyListed));
         try (OutputStream out = Files.newOutputStream(AppPaths.settingsFile())) {
             properties.store(out, "MDC VPN ayarlari");
         } catch (IOException ignored) {
             // Ayar kaydedilemezse varsayilanlar kullanilir.
         }
+    }
+
+    public static boolean savedOnlyListed() {
+        return Boolean.parseBoolean(readSetting(KEY_ONLY_LISTED, "false"));
     }
 
     private static String readSetting(String key, String fallback) {

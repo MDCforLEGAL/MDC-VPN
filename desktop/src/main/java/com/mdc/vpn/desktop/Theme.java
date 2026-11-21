@@ -3,6 +3,7 @@ package com.mdc.vpn.desktop;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JScrollBar;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
@@ -12,6 +13,7 @@ import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Rectangle;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -61,6 +63,60 @@ public final class Theme {
         UIManager.put("ToolTip.foreground", TEXT);
         UIManager.put("List.background", CARD);
         UIManager.put("List.foreground", TEXT);
+        UIManager.put("ComboBox.background", CARD_HOVER);
+        UIManager.put("ComboBox.foreground", TEXT);
+        UIManager.put("ComboBox.selectionBackground", STROKE);
+        UIManager.put("ComboBox.selectionForeground", TEXT);
+        UIManager.put("ScrollBar.background", BG);
+        UIManager.put("ScrollBar.thumb", STROKE);
+        UIManager.put("ScrollBar.track", BG);
+        UIManager.put("ScrollBarUI", DarkScrollBarUI.class.getName());
+    }
+
+    /** Koyu temaya uyan ince kaydirma cubugu. */
+    public static class DarkScrollBarUI extends javax.swing.plaf.basic.BasicScrollBarUI {
+        @Override
+        protected void configureScrollBarColors() {
+            thumbColor = STROKE;
+            trackColor = BG;
+        }
+
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            return zeroButton();
+        }
+
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            return zeroButton();
+        }
+
+        private JButton zeroButton() {
+            JButton button = new JButton();
+            Dimension zero = new Dimension(0, 0);
+            button.setPreferredSize(zero);
+            button.setMinimumSize(zero);
+            button.setMaximumSize(zero);
+            button.setBorder(null);
+            button.setOpaque(false);
+            return button;
+        }
+
+        @Override
+        protected void paintTrack(Graphics graphics, JComponent component, Rectangle bounds) {
+            graphics.setColor(BG);
+            graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+        }
+
+        @Override
+        protected void paintThumb(Graphics graphics, JComponent component, Rectangle bounds) {
+            if (bounds.isEmpty() || !((JScrollBar) component).isEnabled()) return;
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(thumbColor);
+            g.fillRoundRect(bounds.x + 2, bounds.y + 2, bounds.width - 4, bounds.height - 4, 6, 6);
+            g.dispose();
+        }
     }
 
     public static Font regular(float size) {
@@ -205,6 +261,105 @@ public final class Theme {
             }
             g.dispose();
             setForeground(selected ? ON_ACCENT : SECONDARY);
+            super.paintComponent(graphics);
+        }
+    }
+
+    /** Mobil surumdeki gibi yuvarlak anahtar (switch). */
+    public static class Switch extends JToggleButton {
+        public Switch() {
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setPreferredSize(new Dimension(42, 24));
+            setMaximumSize(new Dimension(42, 24));
+            setMinimumSize(new Dimension(42, 24));
+            addItemListener(e -> repaint());
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int h = 24;
+            int w = 42;
+            int y = (getHeight() - h) / 2;
+            g.setColor(isSelected() ? ACCENT : STROKE);
+            g.fillRoundRect(0, y, w, h, h, h);
+            g.setColor(isSelected() ? ON_ACCENT : SECONDARY);
+            int knob = 18;
+            int x = isSelected() ? w - knob - 3 : 3;
+            g.fillOval(x, y + 3, knob, knob);
+            g.dispose();
+            super.paintComponent(graphics);
+        }
+    }
+
+    /** Baslik cubugundaki simge dugmesi (kucult / kapat / ayarlar). */
+    public static class IconButton extends JButton {
+        private final boolean danger;
+        private boolean hover;
+
+        public IconButton(String text, boolean danger) {
+            super(text);
+            this.danger = danger;
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setFont(medium(15f));
+            setForeground(SECONDARY);
+            setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
+            setPreferredSize(new Dimension(34, 30));
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(MouseEvent e) {
+                    hover = true;
+                    setForeground(danger ? DANGER : TEXT);
+                    repaint();
+                }
+
+                @Override
+                public void mouseExited(MouseEvent e) {
+                    hover = false;
+                    setForeground(SECONDARY);
+                    repaint();
+                }
+            });
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            if (hover) {
+                Graphics2D g = (Graphics2D) graphics.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setColor(danger ? new Color(0x3A1D20) : CARD_HOVER);
+                g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g.dispose();
+            }
+            super.paintComponent(graphics);
+        }
+    }
+
+    /** Kenarliksiz pencere/dialog icin yuvarlatilmis koyu yuzey. */
+    public static class WindowPanel extends JPanel {
+        public WindowPanel() {
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(BG);
+            g.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 18, 18));
+            g.setColor(STROKE);
+            g.setStroke(new BasicStroke(1f));
+            g.draw(new RoundRectangle2D.Double(0.5, 0.5, getWidth() - 1, getHeight() - 1, 18, 18));
+            g.dispose();
             super.paintComponent(graphics);
         }
     }

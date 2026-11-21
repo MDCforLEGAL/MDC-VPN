@@ -17,6 +17,8 @@ import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.WindowConstants;
@@ -24,12 +26,24 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Desktop;
 import java.awt.Dimension;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.Point;
+import java.awt.RenderingHints;
+import java.awt.Window;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
@@ -45,6 +59,8 @@ import java.util.Locale;
 public final class MainWindow {
 
     private static final String LINKS = "https://mdcforlegal.github.io";
+    private static final String REPO = "https://github.com/MDCforLEGAL/MDC-VPN";
+    private static final String RELEASES = REPO + "/releases/latest";
 
     private final JFrame frame = new JFrame("MDC VPN");
     private final Theme.StatusRing ring = new Theme.StatusRing();
@@ -58,14 +74,13 @@ public final class MainWindow {
     private final JLabel uploadValue = Theme.label("0 B/s", Theme.medium(17f), Theme.TEXT);
     private final Theme.PillToggle openVpnToggle = new Theme.PillToggle("OpenVPN");
     private final Theme.PillToggle wireGuardToggle = new Theme.PillToggle("WireGuard");
-    private final Theme.PillToggle zapret1Toggle = new Theme.PillToggle("Zapret 1");
-    private final Theme.PillToggle zapret2Toggle = new Theme.PillToggle("Zapret 2");
     private final JComboBox<String> zapretPreset = new JComboBox<>();
-    private final JCheckBox zapretListed = new JCheckBox("Yalnızca listedeki siteler");
-    private final Theme.Button zapretButton = new Theme.Button("DPI'ı Başlat", false);
+    private final Theme.Button zapretButton = new Theme.Button("Başlat", false);
     private final JLabel zapretStatus = Theme.label("Kapalı", Theme.regular(11f), Theme.MUTED);
     private final ZapretManager zapret = new ZapretManager();
     private ZapretManager.Engine zapretEngine = ZapretManager.savedEngine();
+    private boolean zapretOnlyListed = ZapretManager.savedOnlyListed();
+    private boolean fillingPresets;
     private List<ZapretManager.Preset> zapretPresets = List.of();
     private final Theme.Button connectButton = new Theme.Button("Bağlan", true);
     private final JTextArea logArea = new JTextArea();
@@ -100,62 +115,127 @@ public final class MainWindow {
 
     private void buildUi() {
         frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-        frame.setSize(490, 880);
-        frame.setMinimumSize(new Dimension(460, 760));
+        // Kenarliksiz pencere: baslik cubugu mobil surumdeki gibi uygulamanin
+        // kendi koyu yuzeyinin parcasi olur.
+        frame.setUndecorated(true);
+        frame.setBackground(translucencySupported() ? new Color(0, 0, 0, 0) : Theme.BG);
+        frame.setSize(520, 840);
+        frame.setResizable(false);
         frame.setLocationRelativeTo(null);
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                if (tunnel != null) tunnel.stop();
-                zapret.stop();
-                frame.dispose();
-                System.exit(0);
+                shutdown();
             }
         });
 
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(Theme.BG);
-        root.setBorder(BorderFactory.createEmptyBorder(18, 20, 14, 20));
+        Theme.WindowPanel root = new Theme.WindowPanel();
+        root.setLayout(new BorderLayout());
+        root.setBorder(BorderFactory.createEmptyBorder(16, 18, 14, 18));
         root.add(buildHeader(), BorderLayout.NORTH);
         root.add(buildContent(), BorderLayout.CENTER);
         root.add(buildFooter(), BorderLayout.SOUTH);
         frame.setContentPane(root);
+
+        SwingUtilities.invokeLater(this::maybeAutoConnect);
+    }
+
+    private static boolean translucencySupported() {
+        try {
+            return GraphicsEnvironment.getLocalGraphicsEnvironment()
+                    .getDefaultScreenDevice()
+                    .isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void shutdown() {
+        ticker.stop();
+        if (tunnel != null) tunnel.stop();
+        zapret.stop();
+        frame.dispose();
+        System.exit(0);
+    }
+
+    private void maybeAutoConnect() {
+        if (!Profiles.autoConnect()) return;
+        if (profile == null || !profile.isReady()) return;
+        // Yonetici izni yoksa UAC istemiyle uygulamayi kapatmayalim.
+        if (!AppPaths.isElevated()) return;
+        if (state == Tunnel.State.DISCONNECTED) onConnectClicked();
     }
 
     private JComponent buildHeader() {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
-        header.setBorder(BorderFactory.createEmptyBorder(0, 0, 16, 0));
+        header.setBorder(BorderFactory.createEmptyBorder(0, 2, 14, 2));
 
         JPanel brand = new JPanel();
         brand.setOpaque(false);
         brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
-        JLabel mark = new JLabel("M");
-        mark.setFont(Theme.bold(15f));
-        mark.setForeground(Theme.ON_ACCENT);
-        mark.setHorizontalAlignment(JLabel.CENTER);
-        mark.setOpaque(true);
-        mark.setBackground(Theme.ACCENT);
-        mark.setPreferredSize(new Dimension(34, 34));
-        mark.setMaximumSize(new Dimension(34, 34));
-        mark.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        JComponent mark = brandMark();
         brand.add(mark);
         brand.add(Box.createHorizontalStrut(10));
 
         JPanel titles = new JPanel();
         titles.setOpaque(false);
         titles.setLayout(new BoxLayout(titles, BoxLayout.Y_AXIS));
-        titles.add(Theme.label("MDC VPN", Theme.bold(17f), Theme.TEXT));
-        titles.add(Theme.label("Windows x64", Theme.regular(11f), Theme.MUTED));
+        titles.add(Theme.label("MDC VPN", Theme.bold(16f), Theme.TEXT));
+        titles.add(Theme.label("Windows x64", Theme.regular(10.5f), Theme.MUTED));
         brand.add(titles);
 
-        Theme.Button settings = new Theme.Button("Ayarlar", false);
-        settings.setFont(Theme.regular(12f));
+        JPanel windowButtons = new JPanel();
+        windowButtons.setOpaque(false);
+        windowButtons.setLayout(new BoxLayout(windowButtons, BoxLayout.X_AXIS));
+
+        Theme.IconButton settings = new Theme.IconButton("⚙", false);
+        settings.setFont(new java.awt.Font("Segoe UI Symbol", java.awt.Font.PLAIN, 16));
+        settings.setToolTipText("Ayarlar");
         settings.addActionListener(e -> openSettings());
+        windowButtons.add(settings);
+        windowButtons.add(Box.createHorizontalStrut(2));
+
+        Theme.IconButton minimize = new Theme.IconButton("—", false);
+        minimize.setToolTipText("Küçült");
+        minimize.addActionListener(e -> frame.setState(JFrame.ICONIFIED));
+        windowButtons.add(minimize);
+
+        Theme.IconButton close = new Theme.IconButton("✕", true);
+        close.setToolTipText("Kapat");
+        close.addActionListener(e -> shutdown());
+        windowButtons.add(close);
 
         header.add(brand, BorderLayout.WEST);
-        header.add(settings, BorderLayout.EAST);
+        header.add(windowButtons, BorderLayout.EAST);
+
+        enableDrag(frame, header, brand, titles, mark);
         return header;
+    }
+
+    /** Yuvarlatilmis "M" logosu. */
+    private static JComponent brandMark() {
+        JComponent mark = new JComponent() {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                Graphics2D g = (Graphics2D) graphics.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setColor(Theme.ACCENT);
+                g.fillRoundRect(0, 0, getWidth(), getHeight(), 11, 11);
+                g.setColor(Theme.ON_ACCENT);
+                g.setFont(Theme.bold(15f));
+                FontMetrics fm = g.getFontMetrics();
+                int x = (getWidth() - fm.stringWidth("M")) / 2;
+                int y = (getHeight() - fm.getHeight()) / 2 + fm.getAscent();
+                g.drawString("M", x, y);
+                g.dispose();
+            }
+        };
+        mark.setOpaque(false);
+        mark.setPreferredSize(new Dimension(32, 32));
+        mark.setMinimumSize(new Dimension(32, 32));
+        mark.setMaximumSize(new Dimension(32, 32));
+        return mark;
     }
 
     private JComponent buildContent() {
@@ -172,36 +252,31 @@ public final class MainWindow {
         content.add(buildZapretCard(), gbc);
         content.add(buildProfileCard(), gbc);
 
-        connectButton.setPreferredSize(new Dimension(0, 52));
+        connectButton.setPreferredSize(new Dimension(0, 50));
         connectButton.addActionListener(e -> onConnectClicked());
         content.add(connectButton, gbc);
-
         content.add(buildStats(), gbc);
-        content.add(buildLogCard(), gbc);
 
-        JScrollPane scroll = new JScrollPane(content);
-        scroll.setBorder(null);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        scroll.getVerticalScrollBar().setUnitIncrement(16);
-        return scroll;
+        gbc.weighty = 1;
+        content.add(Box.createVerticalGlue(), gbc);
+        return content;
     }
 
     private JComponent buildStatusCard() {
         Theme.Card card = new Theme.Card(20);
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBorder(BorderFactory.createEmptyBorder(18, 18, 18, 18));
+        card.setBorder(BorderFactory.createEmptyBorder(14, 18, 16, 18));
 
         ring.setAlignmentX(Component.CENTER_ALIGNMENT);
         card.add(ring);
-        card.add(Box.createVerticalStrut(12));
+        card.add(Box.createVerticalStrut(10));
 
+        stateTitle.setFont(Theme.bold(21f));
         stateTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
         stateSubtitle.setAlignmentX(Component.CENTER_ALIGNMENT);
         stateSubtitle.setHorizontalAlignment(JLabel.CENTER);
         card.add(stateTitle);
-        card.add(Box.createVerticalStrut(4));
+        card.add(Box.createVerticalStrut(3));
         card.add(stateSubtitle);
         return card;
     }
@@ -234,51 +309,40 @@ public final class MainWindow {
     private JComponent buildZapretCard() {
         Theme.Card card = new Theme.Card(18);
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBorder(BorderFactory.createEmptyBorder(12, 14, 14, 14));
+        card.setBorder(BorderFactory.createEmptyBorder(11, 14, 12, 14));
 
         JPanel titleRow = new JPanel(new BorderLayout());
         titleRow.setOpaque(false);
         titleRow.add(Theme.label("DPI ATLATMA (ZAPRET)", Theme.medium(10f), Theme.MUTED), BorderLayout.WEST);
         titleRow.add(zapretStatus, BorderLayout.EAST);
         card.add(titleRow);
-        card.add(Box.createVerticalStrut(8));
+        card.add(Box.createVerticalStrut(7));
 
-        JPanel engines = new JPanel(new GridLayout(1, 2, 8, 0));
-        engines.setOpaque(false);
-        engines.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        engines.setPreferredSize(new Dimension(0, 36));
-        ButtonGroup group = new ButtonGroup();
-        group.add(zapret1Toggle);
-        group.add(zapret2Toggle);
-        zapret1Toggle.setSelected(zapretEngine == ZapretManager.Engine.ZAPRET1);
-        zapret2Toggle.setSelected(zapretEngine == ZapretManager.Engine.ZAPRET2);
-        zapret1Toggle.addActionListener(e -> selectZapretEngine(ZapretManager.Engine.ZAPRET1));
-        zapret2Toggle.addActionListener(e -> selectZapretEngine(ZapretManager.Engine.ZAPRET2));
-        engines.add(zapret1Toggle);
-        engines.add(zapret2Toggle);
-        card.add(engines);
-        card.add(Box.createVerticalStrut(8));
+        JPanel controls = new JPanel(new BorderLayout(8, 0));
+        controls.setOpaque(false);
+        controls.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        controls.setPreferredSize(new Dimension(0, 34));
 
         zapretPreset.setFont(Theme.regular(12f));
         zapretPreset.setBackground(Theme.CARD_HOVER);
         zapretPreset.setForeground(Theme.TEXT);
-        zapretPreset.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        zapretPreset.setPreferredSize(new Dimension(0, 32));
-        card.add(zapretPreset);
-        card.add(Box.createVerticalStrut(6));
+        zapretPreset.setPreferredSize(new Dimension(0, 34));
+        zapretPreset.addActionListener(e -> {
+            if (fillingPresets) return;
+            int index = zapretPreset.getSelectedIndex();
+            if (index >= 0 && index < zapretPresets.size()) {
+                ZapretManager.saveSelection(zapretEngine, zapretPresets.get(index).id(), zapretOnlyListed);
+            }
+        });
 
-        zapretListed.setOpaque(false);
-        zapretListed.setForeground(Theme.SECONDARY);
-        zapretListed.setFont(Theme.regular(11f));
-        zapretListed.setFocusPainted(false);
-        zapretListed.setToolTipText("Kapalıyken tüm trafik işlenir; açıkken yalnızca hostlist.txt");
-        card.add(zapretListed);
-        card.add(Box.createVerticalStrut(8));
-
-        zapretButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
-        zapretButton.setPreferredSize(new Dimension(0, 38));
+        zapretButton.setPreferredSize(new Dimension(116, 34));
+        zapretButton.setMaximumSize(new Dimension(116, 34));
+        zapretButton.setFont(Theme.medium(12f));
         zapretButton.addActionListener(e -> toggleZapret());
-        card.add(zapretButton);
+
+        controls.add(zapretPreset, BorderLayout.CENTER);
+        controls.add(zapretButton, BorderLayout.EAST);
+        card.add(controls);
 
         fillZapretPresets();
         renderZapret();
@@ -294,9 +358,11 @@ public final class MainWindow {
         zapretEngine = engine;
         fillZapretPresets();
         renderZapret();
+        ZapretManager.saveSelection(zapretEngine, selectedZapretPresetId(), zapretOnlyListed);
     }
 
     private void fillZapretPresets() {
+        fillingPresets = true;
         zapretPresets = ZapretManager.presets(zapretEngine);
         zapretPreset.removeAllItems();
         String saved = ZapretManager.savedPresetId();
@@ -306,6 +372,7 @@ public final class MainWindow {
             if (zapretPresets.get(i).id().equals(saved)) selected = i;
         }
         if (!zapretPresets.isEmpty()) zapretPreset.setSelectedIndex(selected);
+        fillingPresets = false;
     }
 
     private void toggleZapret() {
@@ -339,7 +406,7 @@ public final class MainWindow {
         }
 
         try {
-            zapret.start(preset, zapretListed.isSelected());
+            zapret.start(preset, zapretOnlyListed);
             appendLog("DPI atlatma etkin: " + preset.name() + " (" + preset.engine().label + ")");
         } catch (IOException ex) {
             appendLog("HATA: " + ex.getMessage());
@@ -350,7 +417,7 @@ public final class MainWindow {
 
     private void renderZapret() {
         boolean running = zapret.isRunning();
-        zapretButton.setText(running ? "DPI'ı Durdur" : "DPI'ı Başlat");
+        zapretButton.setText(running ? "Durdur" : "Başlat");
         if (running && zapret.activePreset() != null) {
             zapretStatus.setText("Etkin • " + zapret.activePreset().name());
             zapretStatus.setForeground(Theme.ACCENT);
@@ -446,7 +513,7 @@ public final class MainWindow {
         JPanel footer = new JPanel(new BorderLayout());
         footer.setOpaque(false);
         footer.setBorder(BorderFactory.createEmptyBorder(12, 2, 0, 2));
-        footer.add(Theme.label("OpenVPN • WireGuard • MDC VPN", Theme.regular(10.5f), Theme.MUTED),
+        footer.add(Theme.label("OpenVPN • WireGuard • Zapret • MDC VPN", Theme.regular(10f), Theme.MUTED),
                 BorderLayout.WEST);
         footer.add(Theme.label("v" + version(), Theme.regular(10.5f), Theme.MUTED), BorderLayout.EAST);
         return footer;
@@ -582,6 +649,8 @@ public final class MainWindow {
         engine = next;
         Profiles.setEngine(next);
         profile = Profiles.load(next);
+        openVpnToggle.setSelected(next == Profiles.Engine.OPENVPN);
+        wireGuardToggle.setSelected(next == Profiles.Engine.WIREGUARD);
         renderProfile();
     }
 
@@ -614,69 +683,382 @@ public final class MainWindow {
 
     private void openSettings() {
         JDialog dialog = new JDialog(frame, "Ayarlar", true);
-        dialog.setSize(430, 360);
+        dialog.setUndecorated(true);
+        dialog.setBackground(translucencySupported() ? new Color(0, 0, 0, 0) : Theme.BG);
+        dialog.setSize(520, 700);
         dialog.setLocationRelativeTo(frame);
 
+        Theme.WindowPanel root = new Theme.WindowPanel();
+        root.setLayout(new BorderLayout());
+        root.setBorder(BorderFactory.createEmptyBorder(14, 16, 10, 16));
+
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        header.setBorder(BorderFactory.createEmptyBorder(2, 4, 12, 0));
+        header.add(Theme.label("Ayarlar", Theme.bold(19f), Theme.TEXT), BorderLayout.WEST);
+        Theme.IconButton close = new Theme.IconButton("✕", true);
+        close.setToolTipText("Kapat");
+        close.addActionListener(e -> dialog.dispose());
+        header.add(close, BorderLayout.EAST);
+        enableDrag(dialog, header);
+        root.add(header, BorderLayout.NORTH);
+
         JPanel content = new JPanel();
-        content.setBackground(Theme.BG);
-        content.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(BorderFactory.createEmptyBorder(0, 2, 14, 4));
 
-        content.add(Theme.label("BAĞLANTI", Theme.medium(10f), Theme.MUTED));
-        content.add(Box.createVerticalStrut(10));
+        // ------------------------------------------------------------ baglanti
+        Theme.Switch autoConnect = new Theme.Switch();
+        autoConnect.setSelected(Profiles.autoConnect());
+        autoConnect.addActionListener(e -> Profiles.setAutoConnect(autoConnect.isSelected()));
 
-        JCheckBox legacy = new JCheckBox("Eski sunucu uyumluluğu", Profiles.legacy());
-        legacy.setOpaque(false);
-        legacy.setForeground(Theme.TEXT);
-        legacy.setFont(Theme.regular(13f));
-        legacy.setFocusPainted(false);
+        Theme.Switch legacy = new Theme.Switch();
+        legacy.setSelected(Profiles.legacy());
         legacy.addActionListener(e -> {
             Profiles.setLegacy(legacy.isSelected());
             profile = Profiles.load(engine);
             renderProfile();
         });
-        content.add(legacy);
-        content.add(Box.createVerticalStrut(6));
-        JLabel legacyHint = Theme.label(
-                "<html>BF-CBC, ns-cert-type, tls-remote, LZO ve TLS 1.0 gibi eski<br>"
-                        + "direktifleri modern karşılıklarına çevirir.</html>",
-                Theme.regular(11f), Theme.MUTED);
-        content.add(legacyHint);
-        content.add(Box.createVerticalStrut(18));
 
-        Theme.Button reset = new Theme.Button("Profili sıfırla", false);
-        reset.setAlignmentX(Component.LEFT_ALIGNMENT);
-        reset.addActionListener(e -> {
-            int answer = JOptionPane.showConfirmDialog(dialog,
-                    "İçe aktarılan profil silinsin mi?", "Profili sıfırla",
-                    JOptionPane.YES_NO_OPTION);
-            if (answer == JOptionPane.YES_OPTION) {
-                Profiles.reset();
-                engine = Profiles.Engine.OPENVPN;
-                profile = Profiles.load(engine);
-                openVpnToggle.setSelected(true);
-                renderProfile();
-                dialog.dispose();
-            }
+        content.add(section("BAĞLANTI",
+                settingRow("Açılışta otomatik bağlan",
+                        hint("Uygulama yönetici olarak açıldığında tünel kendiliğinden kurulur"),
+                        autoConnect, null),
+                divider(),
+                settingRow("Eski sunucu uyumluluğu",
+                        hint("BF-CBC, ns-cert-type, tls-remote, LZO ve TLS 1.0 direktiflerini uyarlar"),
+                        legacy, null),
+                divider(),
+                settingRow("Profili sıfırla",
+                        hint("İçe aktarılan yapılandırmayı siler, varsayılana döner"),
+                        null, () -> resetProfileFromSettings(dialog))));
+
+        // ------------------------------------------------------------ protokol
+        Theme.PillToggle openVpn = new Theme.PillToggle("OpenVPN");
+        Theme.PillToggle wireGuard = new Theme.PillToggle("WireGuard");
+        ButtonGroup protocolGroup = new ButtonGroup();
+        protocolGroup.add(openVpn);
+        protocolGroup.add(wireGuard);
+        openVpn.setSelected(engine == Profiles.Engine.OPENVPN);
+        wireGuard.setSelected(engine == Profiles.Engine.WIREGUARD);
+        openVpn.addActionListener(e -> {
+            if (openVpn.isSelected()) selectEngine(Profiles.Engine.OPENVPN);
         });
-        content.add(reset);
-        content.add(Box.createVerticalStrut(8));
+        wireGuard.addActionListener(e -> {
+            if (wireGuard.isSelected()) selectEngine(Profiles.Engine.WIREGUARD);
+        });
+        JPanel protocolRow = new JPanel(new GridLayout(1, 2, 8, 0));
+        protocolRow.setOpaque(false);
+        protocolRow.setPreferredSize(new Dimension(0, 38));
+        protocolRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        protocolRow.add(openVpn);
+        protocolRow.add(wireGuard);
 
-        Theme.Button links = new Theme.Button("Diğer içeriklerim", false);
-        links.setAlignmentX(Component.LEFT_ALIGNMENT);
-        links.addActionListener(e -> browse(LINKS));
-        content.add(links);
-        content.add(Box.createVerticalStrut(20));
+        content.add(section("PROTOKOL",
+                padded(protocolRow),
+                divider(),
+                hintBlock("OpenVPN için .ovpn, WireGuard için .conf dosyası içe aktarın. "
+                        + "Protokol değiştirmek için önce bağlantıyı kesin.")));
 
-        content.add(Theme.label("OpenVPN", Theme.medium(10f), Theme.MUTED));
-        JLabel openVpnPath = Theme.label(AppPaths.openVpnExe().toString(), Theme.regular(10.5f), Theme.SECONDARY);
-        content.add(openVpnPath);
-        content.add(Box.createVerticalStrut(8));
-        content.add(Theme.label("Sürüm", Theme.medium(10f), Theme.MUTED));
-        content.add(Theme.label("MDC VPN " + version() + " • Windows x64", Theme.regular(10.5f), Theme.SECONDARY));
+        // --------------------------------------------------------- dpi atlatma
+        Theme.PillToggle zapret1 = new Theme.PillToggle("Zapret 1");
+        Theme.PillToggle zapret2 = new Theme.PillToggle("Zapret 2");
+        ButtonGroup zapretGroup = new ButtonGroup();
+        zapretGroup.add(zapret1);
+        zapretGroup.add(zapret2);
+        zapret1.setSelected(zapretEngine == ZapretManager.Engine.ZAPRET1);
+        zapret2.setSelected(zapretEngine == ZapretManager.Engine.ZAPRET2);
 
-        dialog.setContentPane(new JScrollPane(content));
+        JLabel strategyValue = Theme.label(currentZapretPresetName(), Theme.regular(11f), Theme.SECONDARY);
+        JLabel dpiStatus = Theme.label(
+                (zapret.isRunning() ? "Etkin" : "Kapalı") + " • " + ZapretManager.directory(),
+                Theme.regular(11f), zapret.isRunning() ? Theme.ACCENT : Theme.MUTED);
+
+        zapret1.addActionListener(e -> {
+            if (!zapret1.isSelected()) return;
+            selectZapretEngine(ZapretManager.Engine.ZAPRET1);
+            strategyValue.setText(currentZapretPresetName());
+        });
+        zapret2.addActionListener(e -> {
+            if (!zapret2.isSelected()) return;
+            selectZapretEngine(ZapretManager.Engine.ZAPRET2);
+            strategyValue.setText(currentZapretPresetName());
+        });
+
+        JPanel zapretRow = new JPanel(new GridLayout(1, 2, 8, 0));
+        zapretRow.setOpaque(false);
+        zapretRow.setPreferredSize(new Dimension(0, 38));
+        zapretRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        zapretRow.add(zapret1);
+        zapretRow.add(zapret2);
+
+        Theme.Switch onlyListed = new Theme.Switch();
+        onlyListed.setSelected(zapretOnlyListed);
+        onlyListed.addActionListener(e -> {
+            zapretOnlyListed = onlyListed.isSelected();
+            ZapretManager.saveSelection(zapretEngine, selectedZapretPresetId(), zapretOnlyListed);
+        });
+
+        content.add(section("DPI ATLATMA (ZAPRET)",
+                padded(zapretRow),
+                divider(),
+                settingRow("Strateji", strategyValue, null, () -> {
+                    chooseZapretPreset(dialog);
+                    strategyValue.setText(currentZapretPresetName());
+                }),
+                divider(),
+                settingRow("Yalnızca listedeki siteler",
+                        hint("Kapalıyken tüm trafik işlenir; açıkken hostlist.txt kullanılır"),
+                        onlyListed, null),
+                divider(),
+                hintBlock("Zapret, WinDivert sürücüsü üzerinden TCP/UDP paketlerini yeniden düzenler. "
+                        + "Başlatmak için yönetici izni gerekir; strateji ve motor seçimi ana ekrandaki "
+                        + "DPI kartından da değiştirilebilir. " + dpiStatus.getText())));
+
+        // ------------------------------------------------------------ guncelleme
+        content.add(section("GÜNCELLEMELER",
+                settingRow("Sürüm", hint("MDC VPN " + version() + " • Windows x64"), null, null),
+                divider(),
+                settingRow("Güncellemeleri denetle", hint("En son sürümü GitHub'da açar"),
+                        null, () -> browse(RELEASES)),
+                divider(),
+                settingRow("Diğer içeriklerim", hint(LINKS), null, () -> browse(LINKS))));
+
+        // ------------------------------------------------------------- tani
+        logArea.setEditable(false);
+        logArea.setFont(Theme.mono(11f));
+        logArea.setBackground(Theme.BG);
+        logArea.setForeground(Theme.SECONDARY);
+        logArea.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        logArea.setRows(5);
+        logArea.setLineWrap(false);
+        JScrollPane logScroll = new JScrollPane(logArea);
+        logScroll.setBorder(BorderFactory.createLineBorder(Theme.STROKE));
+        logScroll.setPreferredSize(new Dimension(0, 110));
+        logScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        logScroll.getViewport().setBackground(Theme.BG);
+
+        Theme.Button clearLog = new Theme.Button("Günlüğü temizle", false);
+        clearLog.setFont(Theme.regular(11f));
+        clearLog.setPreferredSize(new Dimension(150, 32));
+        clearLog.addActionListener(e -> logArea.setText(""));
+
+        content.add(section("TANILAMA", padded(logScroll), divider(), padded(clearLog)));
+
+        // --------------------------------------------------------------- hakkinda
+        content.add(section("HAKKINDA",
+                settingRow("Lisans", hint("Apache-2.0 • OpenVPN 3 + WireGuard + zapret"), null, null),
+                divider(),
+                settingRow("Kaynak kod", hint("github.com/MDCforLEGAL/MDC-VPN"),
+                        null, () -> browse(REPO)),
+                divider(),
+                settingRow("OpenVPN", hint("openvpn.exe uygulama klasöründeki openvpn dizininden çalışır"),
+                        null, null)));
+
+        JScrollPane scroll = new JScrollPane(content);
+        scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.getVerticalScrollBar().setUnitIncrement(18);
+        root.add(scroll, BorderLayout.CENTER);
+
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setOpaque(false);
+        footer.setBorder(BorderFactory.createEmptyBorder(8, 4, 0, 4));
+        footer.add(Theme.label("MDC VPN • Windows x64", Theme.regular(10f), Theme.MUTED), BorderLayout.WEST);
+        footer.add(Theme.label("v" + version(), Theme.regular(10f), Theme.MUTED), BorderLayout.EAST);
+        root.add(footer, BorderLayout.SOUTH);
+
+        dialog.setContentPane(root);
+        dialog.getRootPane().registerKeyboardAction(
+                e -> dialog.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW);
         dialog.setVisible(true);
+        fillZapretPresets();
+        renderZapret();
+    }
+
+    private void resetProfileFromSettings(JDialog dialog) {
+        int answer = JOptionPane.showConfirmDialog(dialog,
+                "İçe aktarılan profil silinsin mi?", "Profili sıfırla",
+                JOptionPane.YES_NO_OPTION);
+        if (answer != JOptionPane.YES_OPTION) return;
+        if (state != Tunnel.State.DISCONNECTED) stopTunnel();
+        Profiles.reset();
+        engine = Profiles.Engine.OPENVPN;
+        Profiles.setEngine(engine);
+        profile = Profiles.load(engine);
+        openVpnToggle.setSelected(true);
+        wireGuardToggle.setSelected(false);
+        renderProfile();
+        appendLog("Profil sıfırlandı.");
+        dialog.dispose();
+    }
+
+    private void chooseZapretPreset(Component parent) {
+        if (zapretPresets.isEmpty()) fillZapretPresets();
+        String[] names = new String[zapretPresets.size()];
+        for (int i = 0; i < zapretPresets.size(); i++) names[i] = zapretPresets.get(i).name();
+        int current = Math.max(0, zapretPreset.getSelectedIndex());
+        Object choice = JOptionPane.showInputDialog(parent, "DPI stratejisi seçin", "Zapret",
+                JOptionPane.PLAIN_MESSAGE, null, names, names[current]);
+        if (choice == null) return;
+        int index = -1;
+        for (int i = 0; i < names.length; i++) if (names[i].equals(choice.toString())) index = i;
+        if (index < 0) return;
+        zapretPreset.setSelectedIndex(index);
+        ZapretManager.saveSelection(zapretEngine, zapretPresets.get(index).id(), zapretOnlyListed);
+    }
+
+    private String currentZapretPresetName() {
+        Object item = zapretPreset.getSelectedItem();
+        return item == null ? "—" : item.toString();
+    }
+
+    private String selectedZapretPresetId() {
+        int index = zapretPreset.getSelectedIndex();
+        if (index < 0 || index >= zapretPresets.size()) return ZapretManager.savedPresetId();
+        return zapretPresets.get(index).id();
+    }
+
+    // ------------------------------------------------------- ayar bilesenleri
+
+    private JComponent section(String title, JComponent... children) {
+        JPanel wrap = new JPanel();
+        wrap.setOpaque(false);
+        wrap.setLayout(new BoxLayout(wrap, BoxLayout.Y_AXIS));
+        wrap.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel heading = Theme.label(title, Theme.medium(10f), Theme.MUTED);
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+        heading.setBorder(BorderFactory.createEmptyBorder(0, 4, 7, 0));
+        wrap.add(heading);
+
+        Theme.Card card = new Theme.Card(18);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(BorderFactory.createEmptyBorder(2, 0, 2, 0));
+        for (JComponent child : children) {
+            child.setAlignmentX(Component.LEFT_ALIGNMENT);
+            card.add(child);
+        }
+        wrap.add(card);
+        wrap.add(Box.createVerticalStrut(12));
+
+        Dimension pref = wrap.getPreferredSize();
+        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, pref.height));
+        return wrap;
+    }
+
+    private JComponent settingRow(String title, JLabel description, JComponent control, Runnable action) {
+        JPanel row = new JPanel(new BorderLayout(12, 0));
+        row.setOpaque(false);
+        row.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.add(Theme.label(title, Theme.medium(13f), Theme.TEXT));
+        text.add(Box.createVerticalStrut(3));
+        text.add(description);
+        row.add(text, BorderLayout.CENTER);
+
+        if (control != null) {
+            row.add(control, BorderLayout.EAST);
+        } else if (action != null) {
+            row.add(Theme.label("›", Theme.regular(19f), Theme.MUTED), BorderLayout.EAST);
+            row.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            installClick(row, action);
+        }
+        Dimension pref = row.getPreferredSize();
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, pref.height));
+        return row;
+    }
+
+    private JLabel hint(String text) {
+        JLabel label = Theme.label(
+                "<html><div style='width:330px'>" + text + "</div></html>",
+                Theme.regular(11f), Theme.SECONDARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return label;
+    }
+
+    private JComponent hintBlock(String text) {
+        JLabel label = hint(text);
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setOpaque(false);
+        wrap.setBorder(BorderFactory.createEmptyBorder(9, 16, 11, 16));
+        wrap.add(label, BorderLayout.CENTER);
+        Dimension pref = wrap.getPreferredSize();
+        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, pref.height));
+        return wrap;
+    }
+
+    private JComponent padded(JComponent child) {
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.setOpaque(false);
+        wrap.setBorder(BorderFactory.createEmptyBorder(9, 16, 9, 16));
+        wrap.add(child, BorderLayout.CENTER);
+        Dimension pref = wrap.getPreferredSize();
+        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, pref.height));
+        return wrap;
+    }
+
+    private JComponent divider() {
+        JPanel holder = new JPanel(new BorderLayout());
+        holder.setOpaque(false);
+        holder.setBorder(BorderFactory.createEmptyBorder(0, 16, 0, 16));
+        JPanel line = new JPanel();
+        line.setBackground(Theme.STROKE);
+        line.setPreferredSize(new Dimension(0, 1));
+        line.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        holder.add(line, BorderLayout.CENTER);
+        holder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 1));
+        return holder;
+    }
+
+    /** Satirin her yerine (yazilar dahil) tiklanabilirlik kazandirir. */
+    private static void installClick(Component component, Runnable action) {
+        MouseAdapter adapter = new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                action.run();
+            }
+
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                component.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            }
+        };
+        component.addMouseListener(adapter);
+        component.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) installClick(child, action);
+        }
+    }
+
+    private static void enableDrag(Window window, Component... components) {
+        MouseAdapter adapter = new MouseAdapter() {
+            private Point origin;
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                origin = e.getPoint();
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (origin == null) return;
+                Point location = window.getLocation();
+                window.setLocation(location.x + e.getX() - origin.x, location.y + e.getY() - origin.y);
+            }
+        };
+        for (Component component : components) {
+            component.addMouseListener(adapter);
+            component.addMouseMotionListener(adapter);
+        }
     }
 
     private void browse(String url) {
