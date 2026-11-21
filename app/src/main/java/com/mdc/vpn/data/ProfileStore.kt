@@ -9,7 +9,10 @@ import com.mdc.vpn.settings.AppSettings
 /** Desteklenen tunel cekirdekleri. */
 enum class VpnEngine {
     OPENVPN,
-    WIREGUARD
+    WIREGUARD,
+
+    /** Yerel DPI atlatma: VpnService + hev-socks5-tunnel + ByeDPI (ciadpi). */
+    BYEDPI
 }
 
 /**
@@ -87,6 +90,7 @@ object ProfileStore {
     fun engine(context: Context): VpnEngine =
         when (prefs(context).getString(KEY_ENGINE, null)) {
             VpnEngine.WIREGUARD.name -> VpnEngine.WIREGUARD
+            VpnEngine.BYEDPI.name -> VpnEngine.BYEDPI
             else -> VpnEngine.OPENVPN
         }
 
@@ -100,7 +104,22 @@ object ProfileStore {
     fun load(context: Context, engine: VpnEngine): VpnProfile = when (engine) {
         VpnEngine.OPENVPN -> openVpnProfile(context)
         VpnEngine.WIREGUARD -> wireGuardProfile(context)
+        VpnEngine.BYEDPI -> byDpiProfile(context)
     }
+
+    /**
+     * ByeDPI icin yapilandirma dosyasi gerekmez; strateji ayarlardan secilir.
+     * Profil yalnizca arayuzde tutarliligi saglamak icin uretilir.
+     */
+    private fun byDpiProfile(context: Context) = VpnProfile(
+        displayName = context.getString(R.string.protocol_byedpi),
+        config = "byedpi",
+        host = context.getString(R.string.byedpi_local_endpoint),
+        port = 1080,
+        protocol = "byedpi",
+        isCustom = false,
+        engine = VpnEngine.BYEDPI
+    )
 
     fun defaultProfile(context: Context): VpnProfile = openVpnProfile(context)
 

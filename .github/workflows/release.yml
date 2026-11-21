@@ -171,6 +171,16 @@ jobs:
           Copy-Item (Join-Path $wintunDir "wintun\LICENSE.txt") "dist\windows\MDC-VPN\WINTUN-LICENSE.txt" -Force
           if (-not (Test-Path "$target\wintun.dll")) { throw "wintun.dll kopyalanamadi" }
 
+      # Zapret (DPI atlatma) ikilileri depoda desktop/zapret altinda tutulur.
+      - name: Bundle Zapret
+        shell: pwsh
+        run: |
+          $target = "dist\windows\MDC-VPN\zapret"
+          Copy-Item "desktop\zapret" $target -Recurse -Force
+          Copy-Item "desktop\zapret-notice.txt" "dist\windows\MDC-VPN\ZAPRET-NOTICE.txt" -Force
+          if (-not (Test-Path "$target\winws.exe")) { throw "winws.exe kopyalanamadi" }
+          if (-not (Test-Path "$target\lua\zapret-lib.lua")) { throw "zapret lua betikleri kopyalanamadi" }
+
       - name: Create ZIP
         shell: pwsh
         run: |

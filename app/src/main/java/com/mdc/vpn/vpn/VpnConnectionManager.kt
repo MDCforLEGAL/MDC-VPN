@@ -9,7 +9,11 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.TrafficStats
 import android.os.IBinder
+import android.os.Build
 import com.mdc.vpn.R
+import com.mdc.vpn.byedpi.ByeDpiRuntime
+import com.mdc.vpn.byedpi.ByeDpiSettings
+import com.mdc.vpn.data.ProfileStore
 import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.data.VpnProfile
 import com.tim.basevpn.IVPNService
@@ -165,6 +169,9 @@ object VpnConnectionManager {
         // Surec oldurulup yeniden olustuysa acik tüneli geri yukle.
         val savedAt = prefs()?.getLong(KEY_CONNECTED_AT, 0L) ?: 0L
         if (savedAt > 0L && isTunnelUp(application)) {
+            // Hangi cekirdegin acik oldugunu profil ayarindan geri yukle; aksi
+            // halde ByeDPI/WireGuard tunu acikken "kes" OpenVPN'i durdururdu.
+            activeEngine = ProfileStore.engine(application)
             connectedAtMillis = savedAt
             _state.value = VpnState.CONNECTED
             startSampler()
@@ -200,7 +207,12 @@ object VpnConnectionManager {
     /** Uygulama tekrar one geldiginde gercek tünel durumunu sistemden okur. */
     fun refreshFromSystem() {
         val context = app ?: return
-        if (!isTunnelUp(context)) return
+        if (!isTunnelUp(context)) {
+            // Tun bildirimden veya sistem tarafindan kapatilmis olabilir; arayuz
+            // "Guvende" ekraninda kalmasin.
+            if (_state.value == VpnState.CONNECTED) applyState(VpnState.DISCONNECTED)
+            return
+        }
         when (_state.value) {
             VpnState.CONNECTING, VpnState.CONNECTED -> applyState(VpnState.CONNECTED)
             VpnState.DISCONNECTED -> {
@@ -225,6 +237,34 @@ object VpnConnectionManager {
         when (profile.engine) {
             VpnEngine.WIREGUARD -> connectWireGuard(profile)
             VpnEngine.OPENVPN -> connectOpenVpn(profile)
+            VpnEngine.BYEDPI -> connectByeDpi()
+        }
+    }
+
+    /**
+     * ByeDPI: yerel ciadpi proxy'si + hev-socks5-tunnel ile DPI atlatma.
+     * Tun `ByeDpiVpnService` icinde kurulur; sistemdeki tun yoklanarak durum
+     * CONNECTED'a gecirilir.
+     */
+    private fun connectByeDpi() {
+        val context = app ?: return
+        if (_state.value == VpnState.CONNECTING || _state.value == VpnState.CONNECTED) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            _lastError.value = context.getString(R.string.byedpi_unsupported)
+            return
+        }
+
+        activeEngine = VpnEngine.BYEDPI
+        _lastError.value = null
+        ByeDpiRuntime.clearError()
+        applyState(VpnState.CONNECTING)
+        startSampler()
+
+        runCatching {
+            ByeDpiVpnService.start(context, ByeDpiSettings.args(context))
+        }.onFailure { error ->
+            _lastError.value = error.message ?: error.javaClass.simpleName
+            applyState(VpnState.DISCONNECTED)
         }
     }
 
@@ -326,6 +366,17 @@ object VpnConnectionManager {
         when (activeEngine) {
             VpnEngine.WIREGUARD -> stopWireGuard()
             VpnEngine.OPENVPN -> stopTunnel(app)
+            VpnEngine.BYEDPI -> stopByeDpi()
+        }
+    }
+
+    private fun stopByeDpi() {
+        val context = app ?: return
+        applyState(VpnState.DISCONNECTING)
+        ByeDpiVpnService.stop(context)
+        scope.launch {
+            delay(8_000)
+            if (_state.value == VpnState.DISCONNECTING) applyState(VpnState.DISCONNECTED)
         }
     }
 
@@ -339,8 +390,12 @@ object VpnConnectionManager {
         if (_state.value == VpnState.DISCONNECTED && !isTunnelUp(target)) return
 
         applyState(VpnState.DISCONNECTING)
-        runCatching { remote?.stopVPN() }
-        runCatching { OpenVPNService.stopService(target) }
+        if (activeEngine == VpnEngine.BYEDPI) {
+            ByeDpiVpnService.stop(target)
+        } else {
+            runCatching { remote?.stopVPN() }
+            runCatching { OpenVPNService.stopService(target) }
+        }
 
         // Servis kapanisi bazen gecikmeli bildirilir; UI'i kilitlemeyelim.
         scope.launch {
@@ -393,11 +448,21 @@ object VpnConnectionManager {
                 delay(1_000)
                 when (_state.value) {
                     VpnState.CONNECTING -> {
+                        // ByeDPI servisi baslatma sirasinda hata bildirdiyse hemen don.
+                        val byDpiError = if (activeEngine == VpnEngine.BYEDPI) ByeDpiRuntime.lastError else null
                         if (isTunnelUp(app)) {
                             applyState(VpnState.CONNECTED)
+                        } else if (byDpiError != null) {
+                            if (!stopRequested) _lastError.value = byDpiError
+                            applyState(VpnState.DISCONNECTED)
+                            return@launch
                         } else if (System.currentTimeMillis() - connectingSinceMillis > CONNECT_TIMEOUT_MS) {
                             // Sunucuya ulasilamadi: servisi kapat ve kullaniciya don.
-                            app?.let { context -> runCatching { OpenVPNService.stopService(context) } }
+                            if (activeEngine == VpnEngine.BYEDPI) {
+                                app?.let { ByeDpiVpnService.stop(it) }
+                            } else {
+                                app?.let { context -> runCatching { OpenVPNService.stopService(context) } }
+                            }
                             if (!stopRequested) {
                                 _lastError.value = app?.getString(R.string.error_connect_timeout)
                             }

@@ -2,6 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+        hev-socks5-tunnel AAR'i minSdk 29 bildiriyor. ByeDPI secenegi yalnizca
+        Android 10+ cihazlarda gosterilir/calistirilir; eski cihazlarda
+        OpenVPN ve WireGuard kullanilabilir.
+    -->
+    <uses-sdk tools:overrideLibrary="hev.socks5.tunnel" />
+
     <!-- Ag erisimi -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -74,6 +81,23 @@
         <receiver
             android:name=".vpn.VpnControlReceiver"
             android:exported="false" />
+
+        <!-- DPI atlatma: ciadpi (ByeDPI) + hev-socks5-tunnel -->
+        <service
+            android:name=".vpn.ByeDpiVpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="false" />
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+        </service>
 
         <!-- Indirilen guncelleme paketini kurucuya guvenli sekilde acar -->
         <provider

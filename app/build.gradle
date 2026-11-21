@@ -31,6 +31,12 @@ android {
         versionCode appVersionCode
         versionName appVersionName
         vectorDrawables.useSupportLibrary = true
+
+        // ByeDPI ikilileri 3 ABI icin derlendi; hev-socks5-tunnel AAR'i de ayni
+        // kumeyle sinirlanir.
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+        }
     }
 
     signingConfigs {
@@ -84,6 +90,10 @@ android {
     }
 
     packaging {
+        // ciadpi, APK icinden cikarilip nativeLibraryDir'den calistirilir.
+        jniLibs {
+            useLegacyPackaging = true
+        }
         resources {
             excludes += [
                     'META-INF/DEPENDENCIES',
@@ -112,6 +122,10 @@ dependencies {
     // OpenVPN 3 (ics-openvpn core) for Android: VpnService implementation,
     // OVPN3 native engine and the AIDL state callbacks.
     implementation 'io.github.tim06:openvpn:1.1.3'
+
+    // hev-socks5-tunnel: tun dosya tanimlayicisini yerel SOCKS5'e baglar.
+    // Maven'de yok; GitHub surumunden alinan hazir AAR projeye eklendi.
+    implementation files('libs/hev-socks5-tunnel.aar')
 
     // WireGuard (userspace wireguard-go): ikinci protokol secenegi.
     // VpnService bilesenini kendi manifestinden birlestirir.

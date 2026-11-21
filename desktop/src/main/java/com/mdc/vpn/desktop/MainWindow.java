@@ -5,6 +5,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
@@ -34,6 +35,7 @@ import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -56,6 +58,15 @@ public final class MainWindow {
     private final JLabel uploadValue = Theme.label("0 B/s", Theme.medium(17f), Theme.TEXT);
     private final Theme.PillToggle openVpnToggle = new Theme.PillToggle("OpenVPN");
     private final Theme.PillToggle wireGuardToggle = new Theme.PillToggle("WireGuard");
+    private final Theme.PillToggle zapret1Toggle = new Theme.PillToggle("Zapret 1");
+    private final Theme.PillToggle zapret2Toggle = new Theme.PillToggle("Zapret 2");
+    private final JComboBox<String> zapretPreset = new JComboBox<>();
+    private final JCheckBox zapretListed = new JCheckBox("Yalnızca listedeki siteler");
+    private final Theme.Button zapretButton = new Theme.Button("DPI'ı Başlat", false);
+    private final JLabel zapretStatus = Theme.label("Kapalı", Theme.regular(11f), Theme.MUTED);
+    private final ZapretManager zapret = new ZapretManager();
+    private ZapretManager.Engine zapretEngine = ZapretManager.savedEngine();
+    private List<ZapretManager.Preset> zapretPresets = List.of();
     private final Theme.Button connectButton = new Theme.Button("Bağlan", true);
     private final JTextArea logArea = new JTextArea();
 
@@ -96,6 +107,7 @@ public final class MainWindow {
             @Override
             public void windowClosing(WindowEvent e) {
                 if (tunnel != null) tunnel.stop();
+                zapret.stop();
                 frame.dispose();
                 System.exit(0);
             }
@@ -157,6 +169,7 @@ public final class MainWindow {
 
         content.add(buildStatusCard(), gbc);
         content.add(buildProtocolCard(), gbc);
+        content.add(buildZapretCard(), gbc);
         content.add(buildProfileCard(), gbc);
 
         connectButton.setPreferredSize(new Dimension(0, 52));
@@ -216,6 +229,139 @@ public final class MainWindow {
         row.add(wireGuardToggle);
         card.add(row);
         return card;
+    }
+
+    private JComponent buildZapretCard() {
+        Theme.Card card = new Theme.Card(18);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(BorderFactory.createEmptyBorder(12, 14, 14, 14));
+
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setOpaque(false);
+        titleRow.add(Theme.label("DPI ATLATMA (ZAPRET)", Theme.medium(10f), Theme.MUTED), BorderLayout.WEST);
+        titleRow.add(zapretStatus, BorderLayout.EAST);
+        card.add(titleRow);
+        card.add(Box.createVerticalStrut(8));
+
+        JPanel engines = new JPanel(new GridLayout(1, 2, 8, 0));
+        engines.setOpaque(false);
+        engines.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
+        engines.setPreferredSize(new Dimension(0, 36));
+        ButtonGroup group = new ButtonGroup();
+        group.add(zapret1Toggle);
+        group.add(zapret2Toggle);
+        zapret1Toggle.setSelected(zapretEngine == ZapretManager.Engine.ZAPRET1);
+        zapret2Toggle.setSelected(zapretEngine == ZapretManager.Engine.ZAPRET2);
+        zapret1Toggle.addActionListener(e -> selectZapretEngine(ZapretManager.Engine.ZAPRET1));
+        zapret2Toggle.addActionListener(e -> selectZapretEngine(ZapretManager.Engine.ZAPRET2));
+        engines.add(zapret1Toggle);
+        engines.add(zapret2Toggle);
+        card.add(engines);
+        card.add(Box.createVerticalStrut(8));
+
+        zapretPreset.setFont(Theme.regular(12f));
+        zapretPreset.setBackground(Theme.CARD_HOVER);
+        zapretPreset.setForeground(Theme.TEXT);
+        zapretPreset.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        zapretPreset.setPreferredSize(new Dimension(0, 32));
+        card.add(zapretPreset);
+        card.add(Box.createVerticalStrut(6));
+
+        zapretListed.setOpaque(false);
+        zapretListed.setForeground(Theme.SECONDARY);
+        zapretListed.setFont(Theme.regular(11f));
+        zapretListed.setFocusPainted(false);
+        zapretListed.setToolTipText("Kapalıyken tüm trafik işlenir; açıkken yalnızca hostlist.txt");
+        card.add(zapretListed);
+        card.add(Box.createVerticalStrut(8));
+
+        zapretButton.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        zapretButton.setPreferredSize(new Dimension(0, 38));
+        zapretButton.addActionListener(e -> toggleZapret());
+        card.add(zapretButton);
+
+        fillZapretPresets();
+        renderZapret();
+        return card;
+    }
+
+    private void selectZapretEngine(ZapretManager.Engine engine) {
+        if (zapretEngine == engine) return;
+        if (zapret.isRunning()) {
+            zapret.stop();
+            appendLog("Zapret durduruldu (motor değişti).");
+        }
+        zapretEngine = engine;
+        fillZapretPresets();
+        renderZapret();
+    }
+
+    private void fillZapretPresets() {
+        zapretPresets = ZapretManager.presets(zapretEngine);
+        zapretPreset.removeAllItems();
+        String saved = ZapretManager.savedPresetId();
+        int selected = 0;
+        for (int i = 0; i < zapretPresets.size(); i++) {
+            zapretPreset.addItem(zapretPresets.get(i).name());
+            if (zapretPresets.get(i).id().equals(saved)) selected = i;
+        }
+        if (!zapretPresets.isEmpty()) zapretPreset.setSelectedIndex(selected);
+    }
+
+    private void toggleZapret() {
+        if (zapret.isRunning()) {
+            zapret.stop();
+            appendLog("DPI atlatma durduruldu.");
+            renderZapret();
+            return;
+        }
+
+        int index = zapretPreset.getSelectedIndex();
+        if (index < 0 || index >= zapretPresets.size()) return;
+        ZapretManager.Preset preset = zapretPresets.get(index);
+
+        if (!AppPaths.isElevated()) {
+            int answer = JOptionPane.showConfirmDialog(frame,
+                    "Zapret, WinDivert sürücüsünü yüklemek için yönetici izni gerektirir.\n\n"
+                            + "Uygulama yönetici olarak yeniden başlatılsın mı?",
+                    "Yönetici izni gerekli", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (answer == JOptionPane.YES_OPTION) {
+                try {
+                    AppPaths.relaunchElevated();
+                    zapret.stop();
+                    frame.dispose();
+                    System.exit(0);
+                } catch (IOException ex) {
+                    showError("Yönetici olarak başlatılamadı: " + ex.getMessage());
+                }
+            }
+            return;
+        }
+
+        try {
+            zapret.start(preset, zapretListed.isSelected());
+            appendLog("DPI atlatma etkin: " + preset.name() + " (" + preset.engine().label + ")");
+        } catch (IOException ex) {
+            appendLog("HATA: " + ex.getMessage());
+            showError(ex.getMessage());
+        }
+        renderZapret();
+    }
+
+    private void renderZapret() {
+        boolean running = zapret.isRunning();
+        zapretButton.setText(running ? "DPI'ı Durdur" : "DPI'ı Başlat");
+        if (running && zapret.activePreset() != null) {
+            zapretStatus.setText("Etkin • " + zapret.activePreset().name());
+            zapretStatus.setForeground(Theme.ACCENT);
+        } else if (!zapret.lastError().isBlank()) {
+            zapretStatus.setText("Hata");
+            zapretStatus.setForeground(Theme.DANGER);
+        } else {
+            zapretStatus.setText(ZapretManager.isBundled() ? "Kapalı" : "Paket yok");
+            zapretStatus.setForeground(Theme.MUTED);
+        }
+        zapretButton.setEnabled(ZapretManager.isBundled());
     }
 
     private JComponent buildProfileCard() {
@@ -637,6 +783,10 @@ public final class MainWindow {
     }
 
     private void tick() {
+        if (!zapret.isRunning() && zapretStatus.getText().startsWith("Etkin")) {
+            renderZapret();
+            appendLog("Zapret süreci kapandı.");
+        }
         if (state != Tunnel.State.CONNECTED || tunnel == null) return;
         long rx = tunnel.bytesIn();
         long tx = tunnel.bytesOut();

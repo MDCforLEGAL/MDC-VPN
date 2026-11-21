@@ -40,6 +40,8 @@ indirme/yükleme hızı ve `.ovpn` profil seçimi.
 - Oturum süresi sayacı, indirme/yükleme hızı göstergesi
 - Kalıcı (foreground) bildirim: süre kronometresi + **Bağlantıyı Kes** aksiyonu
 - OpenVPN ve WireGuard protokolleri
+- **DPI atlatma (Windows)**: zapret (`winws` / `winws2`) + hazır Türkiye stratejileri
+- **DPI atlatma (Android 10+)**: `VpnService` + hev-socks5-tunnel + ByeDPI (`ciadpi`)
 - Dosya seçiciden kendi `.ovpn` / `.conf` dosyasını içe aktarma (uygulama özel alanına kopyalanır)
 - Eski sunucu uyumluluğu (BF-CBC, `ns-cert-type`, `tls-remote`, LZO, TLS 1.0)
 - `auth-user-pass` profillerinde kullanıcı adı/parola sorma
@@ -76,6 +78,25 @@ istemcisini (`libovpn3.so`, dört ABI) Android `VpnService` ile birleştirir;
 `assets` içindeki `.ovpn` metnini doğrudan çekirdeğe verir. Böylece OpenVPN
 protokolünü yeniden yazmadan gerçek bir tünel kurulur.
 
+### DPI atlatma (ByeDPI)
+
+Android 10+ cihazlarda üçüncü protokol olarak **ByeDPI** seçilebilir. Bu bir
+VPN değildir: trafiği şifrelemez, DPI filtrelerini TCP parçalama/desync ile
+atlatır.
+
+- `ciadpi` ([hufrea/byedpi](https://github.com/hufrea/byedpi), MIT) her ABI
+  için `jniLibs/<abi>/libciadpi.so` olarak paketlenir ve `nativeLibraryDir`
+  üzerinden yerel SOCKS5 proxy (127.0.0.1:1080) olarak çalıştırılır.
+- `ByeDpiVpnService`, `VpnService.Builder` ile tun açar ve uygulamayı tun
+  dışında bırakır.
+- [hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel) (MIT)
+  tun dosya tanımlayıcısını SOCKS5'e bağlar (`libs/hev-socks5-tunnel.aar`).
+- Hazır stratejiler: Dengeli (`split 1 + disorder`), Güçlü
+  (`split 1+s + disorder 3+s`), Sahte paket (`--fake -1 --ttl 8`), TLS kayıt
+  bölme (`--tlsrec 1+s`) ve özel `ciadpi` argümanları.
+- ByeDPI AAR'ı minSdk 29 bildirdiği için seçenek yalnızca Android 10+ üzerinde
+  çalışır; eski cihazlarda OpenVPN ve WireGuard kullanılmaya devam eder.
+
 ## Windows x64 sürümü
 
 `desktop/` modülü, Android modülünden bağımsız bir Java/Swing uygulamasıdır.
@@ -89,6 +110,13 @@ klasöre dönüştürülür.
   `wintun.dll` sürücüsü de pakete dâhil edilir.
 - **WireGuard**: cihazda kurulu [WireGuard for Windows](https://www.wireguard.com/install/)
   istemcisini kullanır.
+- **DPI atlatma (zapret)**: paketteki `zapret\winws.exe` (Zapret 1) veya
+  `zapret\winws2.exe` (Zapret 2) seçilen Türkiye stratejisiyle gizli süreç
+  olarak çalıştırılır. Stratejiler
+  [alimali54/zapret-win-turkey](https://github.com/alimali54/zapret-win-turkey)
+  deposundaki hazır profillerden alınmıştır (Türk Telekom, Superonline,
+  Vodafone, Turkcell, Türksat Kablonet). Zapret, VPN'den bağımsız olarak da
+  açılabilir; WinDivert sürücüsü için yönetici izni gerekir.
 - Tünel açmak için **yönetici izni** gerekir; uygulama gerekirse UAC ile kendini
   yeniden başlatmayı önerir.
 - Profiller `%APPDATA%\MDC VPN\profiles` altında, günlükler `logs` altında tutulur.
@@ -146,7 +174,8 @@ depolarda da CI kırılmaz (APK yine kurulabilir, ancak Play Store'a yüklenemez
 1. `versionCode = 1000 + run_number`, `versionName = 1.0.<run_number>`
 2. **android**: Release APK derlenir, `MDC-VPN.apk` olarak yeniden adlandırılır
 3. **windows**: `desktop` JAR'ı derlenir, OpenVPN Community MSI'ından çıkarılan
-   `openvpn.exe` ile birlikte `jpackage` uygulama klasörü üretilir ve
+   `openvpn.exe`, `wintun.dll` ve `desktop/zapret` (winws + Lua + WinDivert)
+   ile birlikte `jpackage` uygulama klasörü üretilir ve
    `MDC-VPN-Windows-x64.zip` olarak paketlenir
 4. **release**: `v1.0.<run_number>` etiketiyle GitHub Release oluşturulur ve
    iki dosya da eklenir: `MDC-VPN.apk`, `MDC-VPN-Windows-x64.zip`

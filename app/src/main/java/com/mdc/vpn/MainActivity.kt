@@ -22,6 +22,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.mdc.vpn.browser.BrowserActivity
+import com.mdc.vpn.byedpi.ByeDpiDialog
+import com.mdc.vpn.byedpi.ByeDpiSettings
 import com.mdc.vpn.data.ProfileIssue
 import com.mdc.vpn.data.ProfileStore
 import com.mdc.vpn.data.VpnEngine
@@ -92,9 +94,15 @@ class MainActivity : AppCompatActivity() {
             val engine = when (checkedId) {
                 R.id.openVpnButton -> VpnEngine.OPENVPN
                 R.id.wireGuardButton -> VpnEngine.WIREGUARD
+                R.id.byeDpiButton -> VpnEngine.BYEDPI
                 else -> return@addOnButtonCheckedListener
             }
             onProtocolSelected(engine)
+        }
+        binding.profileCard.setOnClickListener {
+            if (ProfileStore.engine(this) == VpnEngine.BYEDPI) {
+                ByeDpiDialog.show(this) { renderProfile() }
+            }
         }
 
         observeVpnState()
@@ -232,6 +240,8 @@ class MainActivity : AppCompatActivity() {
         val current = profile ?: return
         binding.profileName.text = current.displayName
         binding.profileServer.text = when {
+            current.engine == VpnEngine.BYEDPI ->
+                getString(R.string.profile_byedpi_endpoint, ByeDpiSettings.summary(this))
             current.engine == VpnEngine.WIREGUARD && !current.isConfigured ->
                 getString(R.string.profile_wireguard_import_hint)
             current.engine == VpnEngine.WIREGUARD ->
@@ -241,12 +251,15 @@ class MainActivity : AppCompatActivity() {
             else ->
                 getString(R.string.profile_default_endpoint, current.endpoint)
         }
+        val canImport = current.engine != VpnEngine.BYEDPI
+        binding.importButton.visibility = if (canImport) android.view.View.VISIBLE else android.view.View.GONE
     }
 
     private fun applyProtocolSelection(engine: VpnEngine) {
         val target = when (engine) {
             VpnEngine.WIREGUARD -> R.id.wireGuardButton
             VpnEngine.OPENVPN -> R.id.openVpnButton
+            VpnEngine.BYEDPI -> R.id.byeDpiButton
         }
         if (binding.protocolToggle.checkedButtonId != target) {
             binding.protocolToggle.check(target)

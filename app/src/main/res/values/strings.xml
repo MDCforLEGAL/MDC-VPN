@@ -168,4 +168,32 @@
     <string name="settings_legacy_desc">BF-CBC, ns-cert-type, tls-remote, LZO ve TLS 1.0 gibi eski direktifleri OVPN3\'e uyarlar</string>
     <string name="legacy_applied_title">Eski sunucu uyumluluğu uygulandı</string>
     <string name="legacy_applied_message">Profil bağlanabilir hale getirildi. Değişen ayarlar:\n\n%1$s</string>
+
+    <!-- ByeDPI (DPI atlatma) -->
+    <string name="protocol_byedpi">ByeDPI</string>
+    <string name="byedpi_local_endpoint">Yerel SOCKS5 • 127.0.0.1:1080</string>
+    <string name="profile_byedpi_endpoint">DPI atlatma • %1$s</string>
+    <string name="byedpi_preset_title">ByeDPI stratejisi</string>
+    <string name="byedpi_preset_balanced">Dengeli (split 1 + disorder)</string>
+    <string name="byedpi_preset_strong">Güçlü (split 1+s + disorder 3+s)</string>
+    <string name="byedpi_preset_fake">Sahte paket (TTL 8)</string>
+    <string name="byedpi_preset_tlsrec">TLS kayıt bölme (tlsrec)</string>
+    <string name="byedpi_preset_custom">Özel argümanlar…</string>
+    <string name="byedpi_custom_title">Özel ByeDPI argümanları</string>
+    <string name="byedpi_custom_message">ciadpi\'ye verilecek argümanlar. Örnek: --split 1+s --disorder 3+s</string>
+    <string name="byedpi_custom_hint">--split 1+s --disorder 3+s</string>
+    <string name="byedpi_custom_empty">Özel argüman girilmedi</string>
+    <string name="byedpi_session">MDC DPI</string>
+    <string name="byedpi_starting">DPI atlatma başlatılıyor…</string>
+    <string name="byedpi_notification_text">DPI filtreleri atlatılıyor</string>
+    <string name="byedpi_unsupported">ByeDPI için Android 10 veya üzeri gerekiyor.</string>
+    <string name="byedpi_error_binary">ByeDPI çekirdeği bu APK\'da bulunamadı.</string>
+    <string name="byedpi_error_proxy">Yerel DPI proxy\'si başlatılamadı.</string>
+    <string name="byedpi_error_tunnel">Tünel (hev-socks5-tunnel) başlatılamadı.</string>
+    <string name="byedpi_error_proxy_stopped">DPI proxy\'si beklenmedik şekilde kapandı.</string>
+    <string name="byedpi_notice">DPI atlatma bir VPN değildir; trafiği şifrelemez, yalnızca DPI filtrelerini atlatır.</string>
+    <string name="settings_section_byedpi">DPI ATLATMA (BYEDPI)</string>
+    <string name="settings_byedpi_strategy_title">Strateji</string>
+    <string name="settings_byedpi_strategy_desc">ByeDPI (ciadpi) argümanları</string>
+    <string name="settings_byedpi_strategy_value">Strateji: %1$s</string>
 </resources>

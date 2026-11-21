@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.snackbar.Snackbar
 import com.mdc.vpn.browser.BrowserActivity
+import com.mdc.vpn.byedpi.ByeDpiDialog
+import com.mdc.vpn.byedpi.ByeDpiSettings
 import com.mdc.vpn.data.ProfileStore
 import com.mdc.vpn.data.VpnEngine
 import com.mdc.vpn.databinding.ActivitySettingsBinding
@@ -54,6 +56,10 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.playProtectRow.setOnClickListener { UpdatePrompt.showPlayProtectHelp(this) }
 
+        binding.byeDpiRow.setOnClickListener {
+            ByeDpiDialog.show(this) { renderByeDpi() }
+        }
+
         binding.resetProfileRow.setOnClickListener { resetProfile() }
         binding.checkNowRow.setOnClickListener { UpdatePrompt.check(this, manual = true) }
         binding.browseRow.setOnClickListener { openPersonalLinks() }
@@ -63,6 +69,7 @@ class SettingsActivity : AppCompatActivity() {
             val engine = when (checkedId) {
                 R.id.settingsOpenVpnButton -> VpnEngine.OPENVPN
                 R.id.settingsWireGuardButton -> VpnEngine.WIREGUARD
+                R.id.settingsByeDpiButton -> VpnEngine.BYEDPI
                 else -> return@addOnButtonCheckedListener
             }
             if (ProfileStore.engine(this) == engine) return@addOnButtonCheckedListener
@@ -87,6 +94,7 @@ class SettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         syncSelections()
+        renderByeDpi()
         renderInfo()
     }
 
@@ -105,6 +113,7 @@ class SettingsActivity : AppCompatActivity() {
         val engineId = when (ProfileStore.engine(this)) {
             VpnEngine.WIREGUARD -> R.id.settingsWireGuardButton
             VpnEngine.OPENVPN -> R.id.settingsOpenVpnButton
+            VpnEngine.BYEDPI -> R.id.settingsByeDpiButton
         }
         if (binding.engineToggle.checkedButtonId != engineId) {
             binding.engineToggle.check(engineId)
@@ -118,6 +127,13 @@ class SettingsActivity : AppCompatActivity() {
         if (binding.languageToggle.checkedButtonId != languageId) {
             binding.languageToggle.check(languageId)
         }
+    }
+
+    private fun renderByeDpi() {
+        binding.byeDpiSummary.text = getString(
+            R.string.settings_byedpi_strategy_value,
+            ByeDpiSettings.summary(this)
+        )
     }
 
     private fun renderInfo() {

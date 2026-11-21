@@ -1,0 +1,30 @@
+MDC VPN - Zapret / DPI atlatma bildirimi
+========================================
+
+Bu klasordeki zapret dosyalari (winws.exe, winws2.exe, lua betikleri,
+WinDivert.dll, cygwin1.dll) asagidaki acik kaynak projelerden alinmistir:
+
+  * zapret (bol-van)
+    https://github.com/bol-van/zapret
+    https://github.com/bol-van/zapret-win-bundle
+    Lisans: MIT
+
+  * Zapret Windows Turkiye paketi (alimali54)
+    https://github.com/alimali54/zapret-win-turkey
+    Hazir Turkiye stratejileri ve Windows paketleme ornekleri bu projeden
+    uyarlanmistir.
+
+  * WinDivert
+    https://github.com/basil00/divert
+    Lisans: LGPL-3.0 (veya GPL-2.0)
+
+  * Cygwin (cygwin1.dll)
+    https://cygwin.com
+    Lisans: LGPL-3.0; kaynak kodu https://cygwin.com/sources/
+
+Zapret, WinDivert surucusu araciligiyla yalnizca secilen stratejiye gore
+TCP/UDP paketlerini yeniden duzenler. MDC VPN bu araclari degistirmeden,
+kendi arayuzunden gizli bir surec olarak baslatir ve durdurur.
+
+Strateji listesi (Turk Telekom, Superonline, Vodafone, Turkcell, Turksat)
+alimali54/zapret-win-turkey deposundaki hazir profillerden alinmistir.

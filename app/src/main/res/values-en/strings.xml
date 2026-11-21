@@ -168,4 +168,32 @@
     <string name="settings_legacy_desc">Adapts old directives such as BF-CBC, ns-cert-type, tls-remote, LZO and TLS 1.0 for OVPN3</string>
     <string name="legacy_applied_title">Legacy compatibility applied</string>
     <string name="legacy_applied_message">The profile was made connectable. Changed settings:\n\n%1$s</string>
+
+    <!-- ByeDPI (DPI bypass) -->
+    <string name="protocol_byedpi">ByeDPI</string>
+    <string name="byedpi_local_endpoint">Local SOCKS5 • 127.0.0.1:1080</string>
+    <string name="profile_byedpi_endpoint">DPI bypass • %1$s</string>
+    <string name="byedpi_preset_title">ByeDPI strategy</string>
+    <string name="byedpi_preset_balanced">Balanced (split 1 + disorder)</string>
+    <string name="byedpi_preset_strong">Strong (split 1+s + disorder 3+s)</string>
+    <string name="byedpi_preset_fake">Fake packet (TTL 8)</string>
+    <string name="byedpi_preset_tlsrec">TLS record split (tlsrec)</string>
+    <string name="byedpi_preset_custom">Custom arguments…</string>
+    <string name="byedpi_custom_title">Custom ByeDPI arguments</string>
+    <string name="byedpi_custom_message">Arguments passed to ciadpi. Example: --split 1+s --disorder 3+s</string>
+    <string name="byedpi_custom_hint">--split 1+s --disorder 3+s</string>
+    <string name="byedpi_custom_empty">No custom arguments</string>
+    <string name="byedpi_session">MDC DPI</string>
+    <string name="byedpi_starting">Starting DPI bypass…</string>
+    <string name="byedpi_notification_text">Bypassing DPI filters</string>
+    <string name="byedpi_unsupported">ByeDPI requires Android 10 or newer.</string>
+    <string name="byedpi_error_binary">The ByeDPI core is missing from this APK.</string>
+    <string name="byedpi_error_proxy">The local DPI proxy could not be started.</string>
+    <string name="byedpi_error_tunnel">The tunnel (hev-socks5-tunnel) could not be started.</string>
+    <string name="byedpi_error_proxy_stopped">The DPI proxy stopped unexpectedly.</string>
+    <string name="byedpi_notice">DPI bypass is not a VPN: it does not encrypt traffic, it only evades DPI filters.</string>
+    <string name="settings_section_byedpi">DPI BYPASS (BYEDPI)</string>
+    <string name="settings_byedpi_strategy_title">Strategy</string>
+    <string name="settings_byedpi_strategy_desc">ByeDPI (ciadpi) arguments</string>
+    <string name="settings_byedpi_strategy_value">Strategy: %1$s</string>
 </resources>
