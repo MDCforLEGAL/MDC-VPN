@@ -85,7 +85,8 @@ klasöre dönüştürülür.
 - Arayüz aynı kurumsal koyu temayı kullanır: durum halkası, tek tuşla
   bağlan/kes, süre ve indirme/yükleme hızı, profil ve protokol seçimi, günlük.
 - **OpenVPN**: paket içindeki `openvpn\openvpn.exe` gizli pencerede çalışır;
-  durum ve trafik yerel yönetim arayüzünden okunur. Wintun sürücüsü kullanılır.
+  durum ve trafik yerel yönetim arayüzünden okunur. Tünel için gereken
+  `wintun.dll` sürücüsü de pakete dâhil edilir.
 - **WireGuard**: cihazda kurulu [WireGuard for Windows](https://www.wireguard.com/install/)
   istemcisini kullanır.
 - Tünel açmak için **yönetici izni** gerekir; uygulama gerekirse UAC ile kendini

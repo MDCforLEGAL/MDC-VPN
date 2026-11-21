@@ -161,6 +161,16 @@ jobs:
           Copy-Item "desktop\openvpn-notice.txt" "dist\windows\MDC-VPN\OPENVPN-NOTICE.txt" -Force
           if (-not (Test-Path "$target\openvpn.exe")) { throw "openvpn.exe kopyalanamadi" }
 
+          # OpenVPN Community MSI'i Wintun surucusunu icermiyor; tunel icin
+          # gerekli wintun.dll resmi Wintun paketinden ekleniyor.
+          $wintunZip = Join-Path $env:RUNNER_TEMP "wintun.zip"
+          $wintunDir = Join-Path $env:RUNNER_TEMP "wintun"
+          Invoke-WebRequest -Uri "https://www.wintun.net/builds/wintun-0.14.1.zip" -OutFile $wintunZip
+          Expand-Archive -Path $wintunZip -DestinationPath $wintunDir -Force
+          Copy-Item (Join-Path $wintunDir "wintun\bin\amd64\wintun.dll") $target -Force
+          Copy-Item (Join-Path $wintunDir "wintun\LICENSE.txt") "dist\windows\MDC-VPN\WINTUN-LICENSE.txt" -Force
+          if (-not (Test-Path "$target\wintun.dll")) { throw "wintun.dll kopyalanamadi" }
+
       - name: Create ZIP
         shell: pwsh
         run: |

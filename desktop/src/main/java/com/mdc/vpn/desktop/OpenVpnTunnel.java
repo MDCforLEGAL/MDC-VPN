@@ -59,6 +59,11 @@ public final class OpenVpnTunnel implements Tunnel {
                     + "\n\nMDC VPN kurulum paketi openvpn.exe dosyasını içerir; "
                     + "portatif sürümü kullanıyorsanız openvpn klasörünün uygulamanın yanında olduğundan emin olun.");
         }
+        Path wintun = exe.getParent() == null ? null : exe.getParent().resolve("wintun.dll");
+        if (wintun == null || !Files.isRegularFile(wintun)) {
+            throw new IOException("Wintun sürücüsü (wintun.dll) OpenVPN klasöründe bulunamadı. "
+                    + "Tünel için openvpn.exe ile aynı klasörde wintun.dll bulunmalıdır.");
+        }
 
         String config = Profiles.withConnectionLimits(profile.config());
         if (profile.needsCredentials()) {

@@ -9,7 +9,12 @@ OpenVPN is free software, licensed under the GNU General Public License
 version 2. Source code: https://github.com/OpenVPN/openvpn
 Project website: https://openvpn.net/community/
 
-The OpenVPN binaries are started as a separate process by MDC VPN; MDC VPN
+This package also bundles wintun.dll from the Wintun project, the virtual
+network driver used for the tunnel.
+Wintun is free software, licensed under the GNU General Public License
+version 2. Source code: https://git.zx2c4.com/wintun/
+
+OpenVPN and Wintun are started as separate processes by MDC VPN; MDC VPN
 itself is distributed under the Apache License 2.0 (see the project
 repository).
 
